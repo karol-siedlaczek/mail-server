@@ -1,0 +1,9 @@
+# pytest / build scratch
+.pytest_cache/
+__pycache__/
+*.pyc
+# render-config scratch produced by `make test`
+/build/
+/tests/.rendered/
+# self-signed test certs generated at boot
+/tests/tls/
