@@ -101,10 +101,20 @@ fi
 # RENDER_ROOT (tests only) prefixes every absolute dest so a full render can
 # happen in an unprivileged tmpdir. Empty in the container → real paths.
 RENDER_ROOT="${RENDER_ROOT:-}"
-# Resolve the rootfs dir (where tpl/ and sql/ live). In the container this is
-# '/'; under test it's the image's rootfs/ checkout. Derive from this script's
-# location: <rootfs>/usr/local/bin/render-config.sh  →  <rootfs>.
+# Resolve the dir that contains both tpl/ and sql/. In the container this is
+# '/' (script at /usr/local/bin, COPY rootfs/ / + COPY sql/ /sql/ put both
+# there); under test SELF is the image's rootfs/ checkout but sql/ lives one
+# level higher (images/mail-server/sql/). We try rootfs/ first (container
+# path), then fall back one level for the test environment.
 SELF="$(cd "$(dirname "$0")/../../.." && pwd)"
+if [ ! -d "${SELF}/sql" ] && [ -d "${SELF}/../sql" ]; then
+    # Test environment: script is inside rootfs/, sql/ is a sibling of rootfs/.
+    # Keep SELF pointing to rootfs/ for tpl/render.map, but expose a SQL_ROOT
+    # that actually resolves to the sql/ directory.
+    SQL_ROOT="$(cd "${SELF}/../sql" && pwd)"
+else
+    SQL_ROOT="${SELF}/sql"
+fi
 RENDER_MAP="${SELF}/tpl/render.map"
 
 render_templates() {
@@ -117,7 +127,12 @@ render_templates() {
     while read -r src dest _rest; do
         case "$src" in ''|'#'*) continue ;; esac
         [ -n "$dest" ] || die "render.map entry for '$src' has no dest"
-        local src_path="${SELF}/${src}"
+        # sql/ may live outside rootfs/ (test env); use SQL_ROOT for sql/ paths.
+        local src_path
+        case "$src" in
+            sql/*) src_path="${SQL_ROOT}/${src#sql/}" ;;
+            *)     src_path="${SELF}/${src}" ;;
+        esac
         [ -r "$src_path" ] || die "template missing: $src_path"
         abs_dest="${RENDER_ROOT}${dest}"
         mkdir -p "$(dirname "$abs_dest")"
