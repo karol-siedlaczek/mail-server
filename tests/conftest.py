@@ -143,3 +143,55 @@ def db(compose):
     conn = pg_connect()
     yield conn
     conn.close()
+
+
+# ── B.x schema-unit fixtures (no compose; use PGTEST_DSN env var) ─────────────
+import pathlib as _pathlib
+
+_SQL_DIR = _pathlib.Path(__file__).resolve().parents[1] / "sql"
+_SCHEMA_SQL = _SQL_DIR / "schema.sql"
+
+
+def _pgtest_dsn():
+    """Return the DSN for the throwaway Postgres used by schema unit tests."""
+    dsn = os.environ.get("PGTEST_DSN")
+    if not dsn:
+        pytest.skip("PGTEST_DSN not set; start postgres and export PGTEST_DSN")
+    return dsn
+
+
+@pytest.fixture(scope="session")
+def schema_sql_text():
+    return _SCHEMA_SQL.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="session")
+def db_loaded(schema_sql_text):
+    """Load sql/schema.sql once per session (idempotent), yield a DSN.
+
+    Runs the file twice to prove idempotency: a second apply must not error.
+    """
+    import psycopg2 as _psycopg2
+
+    conn = _psycopg2.connect(_pgtest_dsn())
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute(schema_sql_text)
+            cur.execute(schema_sql_text)  # second apply: idempotency check
+    finally:
+        conn.close()
+    return _pgtest_dsn()
+
+
+@pytest.fixture()
+def conn(db_loaded):
+    """A transactional connection; every test's writes are rolled back."""
+    import psycopg2 as _psycopg2
+
+    c = _psycopg2.connect(db_loaded)
+    try:
+        yield c
+    finally:
+        c.rollback()
+        c.close()
