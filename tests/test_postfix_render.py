@@ -5,8 +5,13 @@ run render-config inside the image with representative env, then grep the output
 and run `postfix check`. No Postgres/Dovecot/Rspamd daemons are required —
 postfix check only validates config syntax and referenced files.
 """
+import os
+import shutil
 import subprocess
 import textwrap
+
+import pytest
+from conftest import MAIL_HOST, SMTP_PORT, SUBMISSION_PORT, SMTPS_PORT
 
 IMAGE = "mail-server:test"
 
@@ -100,11 +105,6 @@ def test_main_cf_wiring():
     assert r.returncode == 0, f"stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
     assert "WIRING_OK" in r.stdout, r.stdout
 
-
-import os
-import shutil
-import pytest
-from conftest import MAIL_HOST, SMTP_PORT, SUBMISSION_PORT, SMTPS_PORT
 
 # Host/ports where compose.test.yml (phase A) publishes the mail-server image.
 # Use env-var overrides first, then fall back to conftest constants.
