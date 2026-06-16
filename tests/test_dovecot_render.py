@@ -88,3 +88,16 @@ def test_auth_pop3_gated_on(render_dovecot):
     )
     assert "pop3-login" in out
     assert "port = 995" in out
+
+
+# ── F.3: 10-mail.conf ─────────────────────────────────────────────────────────
+
+def test_mail_location_maildir(render_dovecot):
+    out = render_dovecot("10-mail.conf.tpl")
+    # Maildir under each user's home (home comes from the SQL userdb).
+    assert "maildir:~/Maildir" in out
+    # vmail uid/gid 5000 owns the store.
+    assert "mail_uid = 5000" in out
+    assert "mail_gid = 5000" in out
+    # Sieve namespace / first_valid_uid guard so Dovecot never runs as root.
+    assert "first_valid_uid = 5000" in out
