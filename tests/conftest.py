@@ -247,3 +247,61 @@ def conn(db_loaded):
     finally:
         c.rollback()
         c.close()
+
+
+# ── Dovecot render fixtures (phase F) ────────────────────────────────────────
+
+REPO_TPL = Path(__file__).resolve().parents[1] / "rootfs" / "tpl" / "dovecot"
+RENDER_SH = Path(__file__).resolve().parents[1] / "rootfs" / "usr" / "local" / "bin" / "render-config.sh"
+
+# Env that exercises every conditional knob the dovecot templates read.
+DOVECOT_RENDER_ENV = {
+    "MAIL_HOSTNAME": "mail.example.test",
+    "PG_HOST": "db",
+    "PG_PORT": "5432",
+    "PG_DBNAME": "mail",
+    "PG_USER": "mail_ro",
+    "PG_PASSWORD": "secret",
+    "TLS_CERT_FILE": "/tls/fullchain.pem",
+    "TLS_KEY_FILE": "/tls/privkey.pem",
+    "PASSWORD_SCHEME": "ARGON2ID",
+    "ALLOW_WEAK_SCHEMES": "false",
+    "POP3_ENABLED": "false",
+    # Precomputed-by-render values these templates expand. render-config.sh
+    # derives them from the knobs above; we pass explicit fallbacks so a
+    # plain `envsubst` over a single template still resolves every var.
+    "DOVECOT_PASSWORD_SCHEME": "ARGON2ID",
+    "DOVECOT_AUTH_ALLOW_WEAK": "no",
+    "DOVECOT_POP3_PROTOCOLS": "",
+    "DOVECOT_POP3_SERVICES": "",
+}
+
+
+def _render_one(tpl_name: str, env_overrides: dict, out_dir: Path) -> str:
+    """Expand a single dovecot template with envsubst and return its text."""
+    env = dict(DOVECOT_RENDER_ENV)
+    env.update(env_overrides)
+    src = REPO_TPL / tpl_name
+    dst = out_dir / tpl_name.replace(".tpl", "")
+    # Only the variables we set are substituted; literal $name not in env is
+    # left intact (envsubst with an explicit SHELL-FORMAT var list).
+    varlist = "".join("${%s}" % k for k in env)
+    with open(src) as fh:
+        rendered = subprocess.run(
+            ["envsubst", varlist],
+            stdin=fh,
+            env={**os.environ, **env},
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    dst.write_text(rendered)
+    return rendered
+
+
+@pytest.fixture()
+def render_dovecot(tmp_path):
+    """Return a callable: render_dovecot('10-auth.conf.tpl', {overrides}) -> text."""
+    def _do(tpl_name, env_overrides=None):
+        return _render_one(tpl_name, env_overrides or {}, tmp_path)
+    return _do
