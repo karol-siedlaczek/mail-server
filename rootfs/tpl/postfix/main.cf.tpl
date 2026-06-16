@@ -71,8 +71,14 @@ smtpd_client_message_rate_limit = 100
 anvil_rate_time_unit = 60s
 relayhost = ${RELAYHOST}
 
-# ── TLS (chain files; ports 587/465 force encrypt in master.cf) ─────────────
-smtpd_tls_chain_files = ${TLS_CERT_FILE}, ${TLS_KEY_FILE}
+# ── TLS (separate cert + key; ports 587/465 force encrypt in master.cf) ─────
+# NOTE: use cert_file/key_file, NOT smtpd_tls_chain_files — chain_files treats
+# each listed file as a complete key+cert bundle (multiple entries = different
+# key algorithms), so a cert-only + key-only pair makes Postfix load two broken
+# chains ("TLS not available due to local problem"). fullchain/privkey are the
+# classic separate-file inputs.
+smtpd_tls_cert_file = ${TLS_CERT_FILE}
+smtpd_tls_key_file = ${TLS_KEY_FILE}
 smtpd_tls_security_level = may
 smtpd_tls_protocols = >=TLSv1.2
 smtpd_tls_mandatory_protocols = >=TLSv1.2

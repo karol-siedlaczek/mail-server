@@ -171,8 +171,17 @@ ensure_tls() {
         -subj "/CN=${MAIL_HOSTNAME}" \
         -addext "subjectAltName=DNS:${MAIL_HOSTNAME}" >/dev/null 2>&1 \
         || die "self-signed certificate generation failed"
-    chmod 600 "$key"
     chmod 644 "$cert"
+    # Postfix smtpd runs as the unprivileged 'postfix' user and must be able to
+    # read the key, so group-own it to 'postfix' and make it group-readable
+    # (Dovecot loads it as root). Skipped under RENDER_ROOT: tests run
+    # unprivileged and don't assert perms, so keep the key 0600 there.
+    if [ -z "${RENDER_ROOT}" ]; then
+        chgrp postfix "$key" 2>/dev/null || true
+        chmod 640 "$key"
+    else
+        chmod 600 "$key"
+    fi
 }
 
 log "env resolved; rendering templates"
