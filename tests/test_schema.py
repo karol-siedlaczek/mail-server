@@ -37,7 +37,7 @@ def _columns(cur, table):
     cur.execute(
         """SELECT column_name, data_type, is_nullable, column_default
              FROM information_schema.columns
-            WHERE table_name = %s
+            WHERE table_schema = 'public' AND table_name = %s
             ORDER BY ordinal_position""",
         (table,),
     )
