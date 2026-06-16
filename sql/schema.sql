@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS forwardings (
   destination text NOT NULL,                          -- where it is sent (1:N via rows)
   keep_copy   boolean NOT NULL DEFAULT false,         -- also deliver locally?
   active      boolean NOT NULL DEFAULT true,
-  created_at  timestamptz NOT NULL DEFAULT now()
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (source, destination)
 );
 CREATE INDEX IF NOT EXISTS forwardings_source_active_idx
   ON forwardings (source) WHERE active;

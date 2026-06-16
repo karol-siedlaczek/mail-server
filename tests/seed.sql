@@ -29,12 +29,12 @@ ON CONFLICT (email) DO NOTHING;
 -- Forwarding fwd@example.test -> an external mailbox (redirect, no local copy).
 INSERT INTO forwardings (source, destination, keep_copy, active)
 VALUES ('fwd@example.test', 'external@sink.test', false, true)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (source, destination) DO NOTHING;
 
 -- keep_copy forwarding: alice's mail is forwarded externally AND kept locally.
 INSERT INTO forwardings (source, destination, keep_copy, active)
 VALUES ('alice@example.test', 'external@sink.test', true, true)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (source, destination) DO NOTHING;
 
 -- Send-as grant: bob@ may set envelope MAIL FROM = alice@.
 INSERT INTO sender_login_maps (login_email, allowed_sender, active)
