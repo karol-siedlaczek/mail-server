@@ -72,6 +72,37 @@ set_default GREYLISTING_ENABLED true
 set_default PG_AUDIT_USER       "${PG_USER:-}"
 set_default PG_AUDIT_PASSWORD   "${PG_PASSWORD:-}"
 
+# ── 2b. Derived variables for Dovecot templates ──────────────────────────────
+# These are computed from the primary env knobs above and passed to envsubst.
+# DOVECOT_PASSWORD_SCHEME: the scheme name passed to passdb_default_password_scheme.
+DOVECOT_PASSWORD_SCHEME="${PASSWORD_SCHEME:-ARGON2ID}"
+export DOVECOT_PASSWORD_SCHEME
+# DOVECOT_AUTH_ALLOW_WEAK: Dovecot 'yes'/'no' form of ALLOW_WEAK_SCHEMES.
+if [ "${ALLOW_WEAK_SCHEMES:-false}" = "true" ]; then
+    DOVECOT_AUTH_ALLOW_WEAK="yes"
+else
+    DOVECOT_AUTH_ALLOW_WEAK="no"
+fi
+export DOVECOT_AUTH_ALLOW_WEAK
+# DOVECOT_POP3_PROTOCOLS / DOVECOT_POP3_SERVICES: extra protocol/service lines
+# appended to the protocols directive and service block when POP3 is enabled.
+if [ "${POP3_ENABLED:-false}" = "true" ]; then
+    DOVECOT_POP3_PROTOCOLS=" pop3"
+    DOVECOT_POP3_SERVICES='service pop3-login {
+  inet_listener pop3 {
+    port = 110
+  }
+  inet_listener pop3s {
+    port = 995
+    ssl = yes
+  }
+}'
+else
+    DOVECOT_POP3_PROTOCOLS=""
+    DOVECOT_POP3_SERVICES=""
+fi
+export DOVECOT_POP3_PROTOCOLS DOVECOT_POP3_SERVICES
+
 # ── 3. Validate required variables ───────────────────────────────────────────
 REQUIRED_VARS="MAIL_HOSTNAME PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWORD"
 missing=""
@@ -89,7 +120,9 @@ DUMP_VARS="MAIL_HOSTNAME PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWORD \
   ALLOW_WEAK_SCHEMES MESSAGE_SIZE_LIMIT RSPAMD_REJECT_SCORE \
   DMARC_REPORT_ENABLED DMARC_REPORT_EMAIL AUDIT_ENABLED AUDIT_SCOPE \
   POP3_ENABLED POSTSCREEN_ENABLED GREYLISTING_ENABLED MAIL_BOOTSTRAP_DOMAIN \
-  MAIL_BOOTSTRAP_ADMIN MAIL_BOOTSTRAP_PASSWORD"
+  MAIL_BOOTSTRAP_ADMIN MAIL_BOOTSTRAP_PASSWORD \
+  DOVECOT_PASSWORD_SCHEME DOVECOT_AUTH_ALLOW_WEAK \
+  DOVECOT_POP3_PROTOCOLS DOVECOT_POP3_SERVICES"
 if [ "${RENDER_DUMP_ENV:-}" = "1" ]; then
     for var in $DUMP_VARS; do
         printf '%s=%s\n' "$var" "${!var:-}"

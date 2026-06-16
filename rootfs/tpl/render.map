@@ -26,13 +26,13 @@ sql/postfix/virtual_alias_maps.cf.tpl           /etc/postfix/sql/virtual_alias_m
 sql/postfix/sender_login_maps.cf.tpl            /etc/postfix/sql/sender_login_maps.cf
 #
 # ── dovecot (phase F) ────────────────────────────────────────────────────────
-# tpl/dovecot/10-mail.conf.tpl                    /etc/dovecot/conf.d/10-mail.conf
-# tpl/dovecot/10-auth.conf.tpl                    /etc/dovecot/conf.d/10-auth.conf
-# tpl/dovecot/10-ssl.conf.tpl                     /etc/dovecot/conf.d/10-ssl.conf
-# tpl/dovecot/auth-sql.conf.tpl                   /etc/dovecot/conf.d/auth-sql.conf
-# tpl/dovecot/15-lmtp.conf.tpl                    /etc/dovecot/conf.d/15-lmtp.conf
-# tpl/dovecot/20-managesieve.conf.tpl             /etc/dovecot/conf.d/20-managesieve.conf
-# tpl/dovecot/90-quota.conf.tpl                   /etc/dovecot/conf.d/90-quota.conf
+tpl/dovecot/10-mail.conf.tpl                    /etc/dovecot/conf.d/10-mail.conf
+tpl/dovecot/10-auth.conf.tpl                    /etc/dovecot/conf.d/10-auth.conf
+tpl/dovecot/10-ssl.conf.tpl                     /etc/dovecot/conf.d/10-ssl.conf
+tpl/dovecot/auth-sql.conf.tpl                   /etc/dovecot/auth-sql.conf
+tpl/dovecot/15-lmtp.conf.tpl                    /etc/dovecot/conf.d/20-lmtp.conf
+tpl/dovecot/20-managesieve.conf.tpl             /etc/dovecot/conf.d/20-managesieve.conf
+tpl/dovecot/90-quota.conf.tpl                   /etc/dovecot/conf.d/90-quota.conf
 #
 # ── rspamd (phase G) ─────────────────────────────────────────────────────────
 # tpl/rspamd/local.d/worker-proxy.inc.tpl         /etc/rspamd/local.d/worker-proxy.inc

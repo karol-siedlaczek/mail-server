@@ -11,7 +11,7 @@ auth_mechanisms = plain login
 protocols = imap lmtp sieve${DOVECOT_POP3_PROTOCOLS}
 
 # SQL passdb/userdb (Postgres). Defined in its own file for clarity.
-!include auth-sql.conf
+!include /etc/dovecot/auth-sql.conf
 
 service auth {
   # SASL socket for Postfix. It lives INSIDE the Postfix queue dir so smtpd
