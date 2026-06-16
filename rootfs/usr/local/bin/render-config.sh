@@ -96,5 +96,71 @@ if [ "${RENDER_DUMP_ENV:-}" = "1" ]; then
     exit 0
 fi
 
-log "env resolved"
-# Steps 4+ (template render, ownership, self-signed TLS) are appended in D.2.
+# ── 4. Template render loop ──────────────────────────────────────────────────
+# RENDER_ROOT (tests only) prefixes every absolute dest so a full render can
+# happen in an unprivileged tmpdir. Empty in the container → real paths.
+RENDER_ROOT="${RENDER_ROOT:-}"
+# Resolve the rootfs dir (where tpl/ and sql/ live). In the container this is
+# '/'; under test it's the image's rootfs/ checkout. Derive from this script's
+# location: <rootfs>/usr/local/bin/render-config.sh  →  <rootfs>.
+SELF="$(cd "$(dirname "$0")/../../.." && pwd)"
+RENDER_MAP="${SELF}/tpl/render.map"
+
+render_templates() {
+    [ -r "$RENDER_MAP" ] || die "render map not found: $RENDER_MAP"
+    # Vars envsubst is allowed to substitute (restricting the set means a bare
+    # '$' in a config — e.g. a regex — is left untouched unless we name it).
+    local subst_vars
+    subst_vars="$(printf '${%s} ' $DUMP_VARS)"
+    local src dest abs_dest
+    while read -r src dest _rest; do
+        case "$src" in ''|'#'*) continue ;; esac
+        [ -n "$dest" ] || die "render.map entry for '$src' has no dest"
+        local src_path="${SELF}/${src}"
+        [ -r "$src_path" ] || die "template missing: $src_path"
+        abs_dest="${RENDER_ROOT}${dest}"
+        mkdir -p "$(dirname "$abs_dest")"
+        envsubst "$subst_vars" < "$src_path" > "$abs_dest"
+        log "rendered ${src} -> ${dest}"
+    done < "$RENDER_MAP"
+}
+
+# ── 5. Volume ownership ──────────────────────────────────────────────────────
+# Mail store + daemon state must be owned by the vmail/runtime uids. Skipped
+# under RENDER_ROOT (tests run unprivileged and assert on content, not chown).
+fix_ownership() {
+    [ -z "$RENDER_ROOT" ] || return 0
+    # uid/gid 5000 == vmail (matches Dovecot userdb in the spec).
+    for d in /var/vmail /var/lib/dovecot; do
+        [ -d "$d" ] && chown -R 5000:5000 "$d" || true
+    done
+    [ -d /var/lib/rspamd ] && chown -R _rspamd:_rspamd /var/lib/rspamd || true
+    return 0
+}
+
+# ── 6. Self-signed TLS fallback ──────────────────────────────────────────────
+# Only when the configured cert/key are absent, so a real mounted LE cert is
+# never clobbered. Lets the container boot for tests without a CA.
+ensure_tls() {
+    local cert="${RENDER_ROOT}${TLS_CERT_FILE}"
+    local key="${RENDER_ROOT}${TLS_KEY_FILE}"
+    if [ -s "$cert" ] && [ -s "$key" ]; then
+        log "TLS cert/key present, leaving untouched"
+        return 0
+    fi
+    log "TLS cert/key absent — generating a self-signed pair for ${MAIL_HOSTNAME}"
+    mkdir -p "$(dirname "$cert")" "$(dirname "$key")"
+    openssl req -x509 -newkey rsa:2048 -nodes \
+        -keyout "$key" -out "$cert" -days 365 \
+        -subj "/CN=${MAIL_HOSTNAME}" \
+        -addext "subjectAltName=DNS:${MAIL_HOSTNAME}" >/dev/null 2>&1 \
+        || die "self-signed certificate generation failed"
+    chmod 600 "$key"
+    chmod 644 "$cert"
+}
+
+log "env resolved; rendering templates"
+render_templates
+ensure_tls
+fix_ownership
+log "configuration rendered"

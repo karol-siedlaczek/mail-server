@@ -1,5 +1,9 @@
+import os
+import stat
+import subprocess
 import textwrap
-from conftest import run_render, parse_dump
+from pathlib import Path
+from conftest import run_render, parse_dump, ROOT
 
 
 def base_env():
@@ -95,3 +99,64 @@ def test_missing_required_pg_is_fatal():
     del env["PG_DBNAME"]
     proc = run_render(env=env, expect_rc=1)
     assert "PG_DBNAME" in proc.stderr
+
+
+def full_render(tmp_path, extra=None):
+    """Run a *real* (non-dump) render into tmp_path via RENDER_ROOT.
+
+    Returns the render root so tests can read rendered files at
+    <root><absolute-dest>.
+    """
+    env = base_env()
+    if extra:
+        env.update(extra)
+    env["PATH"] = os.environ["PATH"]
+    env["RENDER_ROOT"] = str(tmp_path)
+    proc = subprocess.run(
+        ["bash", str(ROOT / "rootfs/usr/local/bin/render-config.sh")],
+        env=env, capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, (
+        f"rc={proc.returncode}\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+    )
+    return tmp_path
+
+
+def test_smoke_template_rendered(tmp_path):
+    root = full_render(tmp_path)
+    out = (root / "run/mail-render-smoke.conf").read_text()
+    assert "hostname = mail.example.test" in out
+    assert "pg = mail_ro@postgres:5432/maildb" in out
+    assert "redis = redis:6379/0 prefix=mail" in out
+    assert "reject_score = 15" in out
+    # no unsubstituted placeholders survived
+    assert "${" not in out
+
+
+def test_render_creates_dest_dirs(tmp_path):
+    root = full_render(tmp_path)
+    assert (root / "run/mail-render-smoke.conf").is_file()
+
+
+def test_selfsigned_cert_generated_when_absent(tmp_path):
+    # default TLS_CERT_FILE/_KEY_FILE point at /tls/* which do not exist under
+    # the render root, so render-config must mint a self-signed pair.
+    root = full_render(tmp_path)
+    cert = root / "tls/fullchain.pem"
+    key = root / "tls/privkey.pem"
+    assert cert.is_file() and key.is_file()
+    assert "BEGIN CERTIFICATE" in cert.read_text()
+    # key must not be world-readable
+    mode = stat.S_IMODE(key.stat().st_mode)
+    assert mode & 0o077 == 0, oct(mode)
+
+
+def test_existing_cert_not_overwritten(tmp_path):
+    cert = tmp_path / "tls/fullchain.pem"
+    key = tmp_path / "tls/privkey.pem"
+    cert.parent.mkdir(parents=True)
+    cert.write_text("PRESEEDED-CERT\n")
+    key.write_text("PRESEEDED-KEY\n")
+    full_render(tmp_path)
+    assert cert.read_text() == "PRESEEDED-CERT\n"
+    assert key.read_text() == "PRESEEDED-KEY\n"
