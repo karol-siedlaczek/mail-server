@@ -101,3 +101,16 @@ def test_mail_location_maildir(render_dovecot):
     assert "mail_gid = 5000" in out
     # Sieve namespace / first_valid_uid guard so Dovecot never runs as root.
     assert "first_valid_uid = 5000" in out
+
+
+# ── F.4: 10-ssl.conf ──────────────────────────────────────────────────────────
+
+def test_ssl_cert_key_and_min_protocol(render_dovecot):
+    out = render_dovecot("10-ssl.conf.tpl")
+    assert "ssl = yes" in out
+    # 2.4 directive names; cert/key from TLS_* env.
+    assert "ssl_server_cert_file = /tls/fullchain.pem" in out
+    assert "ssl_server_key_file = /tls/privkey.pem" in out
+    # TLS 1.2 floor.
+    assert "ssl_min_protocol = TLSv1.2" in out
+    assert "ssl_prefer_server_ciphers = yes" in out
