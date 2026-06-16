@@ -2,6 +2,12 @@
 
 Imported by every phase's test module. Helper names are part of the shared
 test contract — do not rename or redefine them downstream.
+
+render-config.sh resolves env (secrets, defaults, validation) and renders
+templates. To assert on the *resolved* values without booting the container,
+we run the script with RENDER_DUMP_ENV=1, which makes it print the final
+resolved variable set (KEY=VALUE, NUL-free) to stdout and exit 0 before any
+filesystem writes that need root.
 """
 import imaplib
 import json
@@ -10,8 +16,54 @@ import shutil
 import socket
 import subprocess
 import time
+from pathlib import Path
 
 import pytest
+
+# ── Render-config helpers (D.1) ──────────────────────────────────────────────
+ROOT = Path(__file__).resolve().parent.parent          # images/mail-server
+RENDER = ROOT / "rootfs" / "usr" / "local" / "bin" / "render-config.sh"
+
+
+def run_render(env=None, dump_env=True, render_root=None, expect_rc=0):
+    """Run render-config.sh in an isolated environment.
+
+    env:          dict of env vars to expose (the *only* vars set; PATH kept).
+    dump_env:     set RENDER_DUMP_ENV=1 so the script prints resolved env and
+                  exits before writing config (no root needed).
+    render_root:  if set, RENDER_ROOT=<dir> so absolute dest paths are
+                  rewritten under <dir> (used by D.2 to render into a tmpdir).
+    Returns CompletedProcess; asserts the return code matches expect_rc.
+    """
+    base = {"PATH": os.environ["PATH"]}
+    if env:
+        base.update(env)
+    if dump_env:
+        base["RENDER_DUMP_ENV"] = "1"
+    if render_root is not None:
+        base["RENDER_ROOT"] = str(render_root)
+    proc = subprocess.run(
+        ["bash", str(RENDER)],
+        env=base,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == expect_rc, (
+        f"rc={proc.returncode} (wanted {expect_rc})\n"
+        f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+    )
+    return proc
+
+
+def parse_dump(stdout):
+    """Parse RENDER_DUMP_ENV output (lines 'KEY=VALUE') into a dict."""
+    out = {}
+    for line in stdout.splitlines():
+        if "=" in line:
+            k, v = line.split("=", 1)
+            out[k] = v
+    return out
+
 
 # ── Connection coordinates (match tests/compose.test.yml host port mappings) ──
 PG_DSN = {
