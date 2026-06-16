@@ -252,7 +252,6 @@ def conn(db_loaded):
 # ── Dovecot render fixtures (phase F) ────────────────────────────────────────
 
 REPO_TPL = Path(__file__).resolve().parents[1] / "rootfs" / "tpl" / "dovecot"
-RENDER_SH = Path(__file__).resolve().parents[1] / "rootfs" / "usr" / "local" / "bin" / "render-config.sh"
 
 # Env that exercises every conditional knob the dovecot templates read.
 DOVECOT_RENDER_ENV = {

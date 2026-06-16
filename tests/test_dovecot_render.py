@@ -150,8 +150,9 @@ def test_quota_count_driver_and_storage_size(render_dovecot):
     # The legacy flat directive must NOT appear as an active line.
     active_lines = [ln for ln in out.splitlines() if not ln.lstrip().startswith("#")]
     assert not any(ln.strip().startswith("quota_driver") for ln in active_lines)
-    # Limit comes from the userdb's quota_storage_size field.
-    assert "quota_storage_size" in out
+    # NOTE: the per-user limit comes from the userdb query's quota_storage_size
+    # field (auth-sql.conf), not from this file — verified in the F.9 integration
+    # test, so it is intentionally not asserted against 90-quota.conf here.
 
 
 # ── F.7: 20-managesieve.conf ──────────────────────────────────────────────────
@@ -198,7 +199,6 @@ def test_doveconf_n_parses_rendered_config(render_dovecot, tmp_path):
     # /etc/dovecot/dovecot.conf does. Dovecot 2.4 requires dovecot_config_version
     # as the very first setting. The glob picks up the conf.d/ files but NOT
     # auth-sql.conf (it is included by 10-auth.conf via !include auth-sql.conf).
-    root = tmp_path / "dovecot.conf"
     # Use individual !include lines to avoid globbing auth-sql.conf (which is
     # already included by 10-auth.conf and must not be double-included via glob).
     include_lines = "\n".join(
