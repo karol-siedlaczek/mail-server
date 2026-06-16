@@ -1,4 +1,5 @@
 #!/command/execlineb -P
 with-contenv
 fdmove -c 2 1
-postsrsd -C /etc/postsrsd.conf
+importas -D "" MAIL_HOSTNAME MAIL_HOSTNAME
+postsrsd -s /etc/postsrsd.secret -d ${MAIL_HOSTNAME} -f 10001 -r 10002 -l 127.0.0.1 -4
