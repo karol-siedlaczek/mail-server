@@ -128,3 +128,15 @@ def test_lmtp_listener_in_postfix_private(render_dovecot):
     # Sieve runs at LMTP delivery time.
     assert "sieve" in out
     assert "protocol lmtp {" in out
+
+
+# ── F.6: 90-quota.conf ────────────────────────────────────────────────────────
+
+def test_quota_count_driver_and_storage_size(render_dovecot):
+    out = render_dovecot("90-quota.conf.tpl")
+    # The quota plugin is enabled for the delivering/serving protocols.
+    assert "quota" in out
+    # Modern `count` backend (no separate dovecot-uidlist maintenance).
+    assert "quota_driver = count" in out
+    # Limit comes from the userdb's quota_storage_size field.
+    assert "quota_storage_size" in out
