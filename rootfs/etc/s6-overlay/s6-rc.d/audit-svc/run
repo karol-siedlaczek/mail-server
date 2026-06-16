@@ -1,0 +1,4 @@
+#!/command/execlineb -P
+with-contenv
+fdmove -c 2 1
+python3 -u /usr/local/bin/audit-svc.py
