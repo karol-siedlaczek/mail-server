@@ -18,12 +18,12 @@
 tpl/_smoke/smoke.conf.tpl   /run/mail-render-smoke.conf
 #
 # ── postfix (phase E) ────────────────────────────────────────────────────────
-# tpl/postfix/main.cf.tpl                         /etc/postfix/main.cf
-# tpl/postfix/master.cf.tpl                       /etc/postfix/master.cf
-# sql/postfix/virtual_mailbox_domains.cf.tpl      /etc/postfix/pgsql/virtual_mailbox_domains.cf
-# sql/postfix/virtual_mailbox_maps.cf.tpl         /etc/postfix/pgsql/virtual_mailbox_maps.cf
-# sql/postfix/virtual_alias_maps.cf.tpl           /etc/postfix/pgsql/virtual_alias_maps.cf
-# sql/postfix/sender_login_maps.cf.tpl            /etc/postfix/pgsql/sender_login_maps.cf
+tpl/postfix/main.cf.tpl                         /etc/postfix/main.cf
+tpl/postfix/master.cf.tpl                       /etc/postfix/master.cf
+sql/postfix/virtual_mailbox_domains.cf.tpl      /etc/postfix/sql/virtual_mailbox_domains.cf
+sql/postfix/virtual_mailbox_maps.cf.tpl         /etc/postfix/sql/virtual_mailbox_maps.cf
+sql/postfix/virtual_alias_maps.cf.tpl           /etc/postfix/sql/virtual_alias_maps.cf
+sql/postfix/sender_login_maps.cf.tpl            /etc/postfix/sql/sender_login_maps.cf
 #
 # ── dovecot (phase F) ────────────────────────────────────────────────────────
 # tpl/dovecot/10-mail.conf.tpl                    /etc/dovecot/conf.d/10-mail.conf
