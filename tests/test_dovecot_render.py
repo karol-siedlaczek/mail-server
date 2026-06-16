@@ -150,3 +150,65 @@ def test_managesieve_port_4190(render_dovecot):
     assert "inet_listener sieve {" in out
     assert "port = 4190" in out
     assert "protocol sieve {" in out
+
+
+# ── F.8: doveconf -n validation ───────────────────────────────────────────────
+
+# Top-level conf.d fragments (included by glob from dovecot.conf root).
+# auth-sql.conf is NOT in this list: it is an !include'd sub-file pulled in by
+# 10-auth.conf directly; adding it to the glob would cause a "recursive include"
+# error from doveconf. It is written alongside the other conf.d files so the
+# relative !include path resolves correctly.
+DOVECOT_CONFD_TEMPLATES = [
+    "10-auth.conf.tpl",
+    "10-mail.conf.tpl",
+    "10-ssl.conf.tpl",
+    "15-lmtp.conf.tpl",
+    "90-quota.conf.tpl",
+    "20-managesieve.conf.tpl",
+]
+
+DOVECOT_TEMPLATES = ["auth-sql.conf.tpl"] + DOVECOT_CONFD_TEMPLATES
+
+
+@pytest.mark.skipif(shutil.which("doveconf") is None, reason="doveconf not installed")
+def test_doveconf_n_parses_rendered_config(render_dovecot, tmp_path):
+    confd = tmp_path / "conf.d"
+    confd.mkdir()
+    # Write auth-sql.conf into conf.d/ so the relative !include in 10-auth.conf
+    # resolves it, but do NOT include it in the root glob (it would be double-
+    # included and doveconf would report "Recursive include file").
+    (confd / "auth-sql.conf").write_text(render_dovecot("auth-sql.conf.tpl"))
+    for tpl in DOVECOT_CONFD_TEMPLATES:
+        text = render_dovecot(tpl)
+        (confd / tpl.replace(".tpl", "")).write_text(text)
+    # Minimal root that pulls in the rendered fragments, the way the image's
+    # /etc/dovecot/dovecot.conf does. Dovecot 2.4 requires dovecot_config_version
+    # as the very first setting. The glob picks up the conf.d/ files but NOT
+    # auth-sql.conf (it is included by 10-auth.conf via !include auth-sql.conf).
+    root = tmp_path / "dovecot.conf"
+    # Use individual !include lines to avoid globbing auth-sql.conf (which is
+    # already included by 10-auth.conf and must not be double-included via glob).
+    include_lines = "\n".join(
+        "!include %s" % str(confd / tpl.replace(".tpl", ""))
+        for tpl in DOVECOT_CONFD_TEMPLATES
+    )
+    root = tmp_path / "dovecot.conf"
+    root.write_text(
+        "dovecot_config_version = 2.4.0\n"
+        "dovecot_storage_version = 2.4.0\n"
+        "base_dir = %s\n"
+        "%s\n" % (tmp_path / "run", include_lines)
+    )
+    proc = subprocess.run(
+        ["doveconf", "-n", "-c", str(root)],
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    # A few normalized keys must survive doveconf's own re-serialization.
+    assert "auth_mechanisms = plain login" in proc.stdout
+    # ssl_min_protocol = TLSv1.2 — rendered in template; doveconf -n omits
+    # it when it equals the compiled-in default, so we verify the SSL block
+    # is present instead (cert/key are always non-default).
+    assert "ssl_server" in proc.stdout or "ssl_min_protocol" in proc.stdout

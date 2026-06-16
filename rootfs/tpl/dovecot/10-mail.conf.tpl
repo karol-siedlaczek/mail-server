@@ -16,8 +16,16 @@ last_valid_uid = 5000
 # Standard special-use mailboxes auto-created on first login.
 namespace inbox {
   inbox = yes
-  mailbox Drafts { special_use = \Drafts }
-  mailbox Junk   { special_use = \Junk }
-  mailbox Sent   { special_use = \Sent }
-  mailbox Trash  { special_use = \Trash }
+  mailbox Drafts {
+    special_use = \Drafts
+  }
+  mailbox Junk {
+    special_use = \Junk
+  }
+  mailbox Sent {
+    special_use = \Sent
+  }
+  mailbox Trash {
+    special_use = \Trash
+  }
 }

@@ -9,4 +9,4 @@ ssl_server_key_file = ${TLS_KEY_FILE}
 
 # Hardening: TLS 1.2 floor (1.0/1.1 are dead), and we choose the cipher order.
 ssl_min_protocol = TLSv1.2
-ssl_prefer_server_ciphers = yes
+# ssl_prefer_server_ciphers = yes  # removed in Dovecot 2.4; server always prefers
