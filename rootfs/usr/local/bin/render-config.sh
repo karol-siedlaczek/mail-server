@@ -35,7 +35,8 @@ for var in $SECRET_VARS; do
         continue
     fi
     [ -r "$file_path" ] || die "${file_var}=${file_path} is not a readable file"
-    # Strip a single trailing newline (the common 'echo secret > file' case).
+    # Strip ALL trailing newlines (shell $() substitution behaviour; the common
+    # 'echo secret > file' case has exactly one, but we strip any number).
     printf -v "$var" '%s' "$(cat "$file_path")"
     export "${var?}"
 done

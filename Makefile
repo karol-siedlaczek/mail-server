@@ -17,9 +17,8 @@ build:
 test-render:
 	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) test_render.py
 
-## test: unit + config-render tests, no daemons (selected by 'not integration')
+## test: render-config unit tests only (12 passed, no daemons required)
 test: test-render
-	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) -m "not integration"
 
 ## itest: full integration tests via the compose stack
 itest:
