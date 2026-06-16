@@ -114,3 +114,17 @@ def test_ssl_cert_key_and_min_protocol(render_dovecot):
     # TLS 1.2 floor.
     assert "ssl_min_protocol = TLSv1.2" in out
     assert "ssl_prefer_server_ciphers = yes" in out
+
+
+# ── F.5: 15-lmtp.conf ─────────────────────────────────────────────────────────
+
+def test_lmtp_listener_in_postfix_private(render_dovecot):
+    out = render_dovecot("15-lmtp.conf.tpl")
+    assert "service lmtp {" in out
+    # Postfix delivers inbound mail over this socket inside its queue dir.
+    assert "/var/spool/postfix/private/dovecot-lmtp" in out
+    assert "mode = 0600" in out
+    assert "user = postfix" in out
+    # Sieve runs at LMTP delivery time.
+    assert "sieve" in out
+    assert "protocol lmtp {" in out
