@@ -1,7 +1,6 @@
 import os
 import stat
 import subprocess
-import textwrap
 from pathlib import Path
 from conftest import run_render, parse_dump, ROOT
 

@@ -17,8 +17,9 @@ build:
 test-render:
 	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) test_render.py
 
-## test: render-config unit tests only (12 passed, no daemons required)
-test: test-render
+## test: all daemon-free tests (harness smoke + render-config), no compose
+test:
+	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) -m "not integration"
 
 ## itest: full integration tests via the compose stack
 itest:
