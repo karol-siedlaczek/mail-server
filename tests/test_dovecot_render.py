@@ -140,3 +140,13 @@ def test_quota_count_driver_and_storage_size(render_dovecot):
     assert "quota_driver = count" in out
     # Limit comes from the userdb's quota_storage_size field.
     assert "quota_storage_size" in out
+
+
+# ── F.7: 20-managesieve.conf ──────────────────────────────────────────────────
+
+def test_managesieve_port_4190(render_dovecot):
+    out = render_dovecot("20-managesieve.conf.tpl")
+    assert "service managesieve-login {" in out
+    assert "inet_listener sieve {" in out
+    assert "port = 4190" in out
+    assert "protocol sieve {" in out
