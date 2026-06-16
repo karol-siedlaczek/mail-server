@@ -1,0 +1,14 @@
+#!/command/execlineb -P
+with-contenv
+fdmove -c 2 1
+loopwhilex
+foreground
+{
+  ifelse { test "${DMARC_REPORT_ENABLED}" = "true" }
+  {
+    foreground { rspamadm dmarc_report }
+    exit 0
+  }
+  exit 0
+}
+sleep 86400
