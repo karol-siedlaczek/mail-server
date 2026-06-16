@@ -7,14 +7,18 @@ COMPOSE_FILE := $(TESTS_DIR)/compose.test.yml
 PYTEST       ?= python3 -m pytest
 PYTEST_FLAGS ?= -q
 
-.PHONY: build test itest lint clean
+.PHONY: build test test-render itest lint clean
 
 ## build: build the image as $(IMAGE)
 build:
 	docker build -t $(IMAGE) $(IMAGE_DIR)
 
+## test-render: render-config unit tests only (no daemons, no compose)
+test-render:
+	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) test_render.py
+
 ## test: unit + config-render tests, no daemons (selected by 'not integration')
-test:
+test: test-render
 	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) -m "not integration"
 
 ## itest: full integration tests via the compose stack
