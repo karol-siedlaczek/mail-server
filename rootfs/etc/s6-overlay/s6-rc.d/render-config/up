@@ -1,1 +1,1 @@
-with-contenv /usr/local/bin/render-config.sh
+/usr/local/bin/render-config.sh
