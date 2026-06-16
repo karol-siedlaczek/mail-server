@@ -94,8 +94,12 @@ def test_auth_pop3_gated_on(render_dovecot):
 
 def test_mail_location_maildir(render_dovecot):
     out = render_dovecot("10-mail.conf.tpl")
-    # Maildir under each user's home (home comes from the SQL userdb).
-    assert "maildir:~/Maildir" in out
+    # Dovecot 2.4 split `mail_location = maildir:~/Maildir` into two directives:
+    assert "mail_driver = maildir" in out
+    assert "mail_path = ~/Maildir" in out
+    # The legacy combined form must NOT appear as an active directive.
+    active_lines = [ln for ln in out.splitlines() if not ln.lstrip().startswith("#")]
+    assert not any("mail_location" in ln for ln in active_lines)
     # vmail uid/gid 5000 owns the store.
     assert "mail_uid = 5000" in out
     assert "mail_gid = 5000" in out
@@ -113,7 +117,10 @@ def test_ssl_cert_key_and_min_protocol(render_dovecot):
     assert "ssl_server_key_file = /tls/privkey.pem" in out
     # TLS 1.2 floor.
     assert "ssl_min_protocol = TLSv1.2" in out
-    assert "ssl_prefer_server_ciphers = yes" in out
+    # ssl_prefer_server_ciphers was removed in Dovecot 2.4 — must NOT appear
+    # as an active (non-commented) directive.
+    active_lines = [ln for ln in out.splitlines() if not ln.lstrip().startswith("#")]
+    assert not any("ssl_prefer_server_ciphers" in ln for ln in active_lines)
 
 
 # ── F.5: 15-lmtp.conf ─────────────────────────────────────────────────────────
@@ -136,8 +143,13 @@ def test_quota_count_driver_and_storage_size(render_dovecot):
     out = render_dovecot("90-quota.conf.tpl")
     # The quota plugin is enabled for the delivering/serving protocols.
     assert "quota" in out
-    # Modern `count` backend (no separate dovecot-uidlist maintenance).
-    assert "quota_driver = count" in out
+    # Dovecot 2.4 `count` backend: configured via `driver = count` inside the
+    # named quota block, NOT the legacy top-level `quota_driver = count`.
+    assert 'driver = count' in out
+    assert 'quota "' in out  # named quota block is present
+    # The legacy flat directive must NOT appear as an active line.
+    active_lines = [ln for ln in out.splitlines() if not ln.lstrip().startswith("#")]
+    assert not any(ln.strip().startswith("quota_driver") for ln in active_lines)
     # Limit comes from the userdb's quota_storage_size field.
     assert "quota_storage_size" in out
 
