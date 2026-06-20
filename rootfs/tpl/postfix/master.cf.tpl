@@ -2,11 +2,9 @@
 # service type  private unpriv  chroot  wakeup  maxproc command + args
 # ============================================================================
 
-# ── :25 inbound — postscreen front (pregreet + DNSBL) → smtpd, NO SASL ──────
-smtp       inet  n       -       n       -       1       postscreen
-smtpd      pass  -       -       n       -       -       smtpd
-  -o smtpd_sasl_auth_enable=no
-dnsblog    unix  -       -       n       -       0       dnsblog
+# ── :25 inbound — NO SASL. render-config substitutes this marker with either a
+#    postscreen front (POSTSCREEN_ENABLED=true) or a plain smtpd (false). ──────
+@@MASTER_INBOUND_25@@
 tlsproxy   unix  -       -       n       -       0       tlsproxy
 
 # ── :587 submission — STARTTLS, SASL, sender-login enforcement ──────────────

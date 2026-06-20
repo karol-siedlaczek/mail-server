@@ -181,6 +181,36 @@ render_templates() {
     done < "$RENDER_MAP"
 }
 
+# ── 4b. Postfix :25 inbound — postscreen vs plain smtpd ──────────────────────
+# master.cf.tpl carries the marker @@MASTER_INBOUND_25@@ for the :25 stanza.
+# When POSTSCREEN_ENABLED is true we front :25 with postscreen (pregreet + the
+# DNSBL/deep tests configured in phase K); otherwise :25 is a plain smtpd so a
+# single, non-retrying delivery attempt is accepted (postscreen deliberately
+# greylists first contact with 450, which only retrying MTAs survive).
+gate_postscreen() {
+    local mc="${RENDER_ROOT}/etc/postfix/master.cf"
+    [ -f "$mc" ] || return 0
+    local block
+    case "${POSTSCREEN_ENABLED:-true}" in
+        1|true|TRUE|True|yes|on)
+            block='smtp       inet  n       -       n       -       1       postscreen
+smtpd      pass  -       -       n       -       -       smtpd
+  -o smtpd_sasl_auth_enable=no
+dnsblog    unix  -       -       n       -       0       dnsblog' ;;
+        *)
+            block='smtp       inet  n       -       n       -       -       smtpd
+  -o smtpd_sasl_auth_enable=no' ;;
+    esac
+    BLOCK="$block" python3 - "$mc" <<'PY'
+import os, sys
+p = sys.argv[1]
+text = open(p).read()
+text = text.replace("@@MASTER_INBOUND_25@@", os.environ["BLOCK"])
+open(p, "w").write(text)
+PY
+    log "rendered :25 inbound stanza (postscreen=${POSTSCREEN_ENABLED:-true})"
+}
+
 # ── 5. Volume ownership ──────────────────────────────────────────────────────
 # Mail store + daemon state must be owned by the vmail/runtime uids. Skipped
 # under RENDER_ROOT (tests run unprivileged and assert on content, not chown).
@@ -226,6 +256,7 @@ ensure_tls() {
 
 log "env resolved; rendering templates"
 render_templates
+gate_postscreen
 ensure_tls
 fix_ownership
 
@@ -277,10 +308,11 @@ case "${CLAMAV_ENABLED}" in 1|true|TRUE|True|yes|on) clamav_on=1 ;; *) clamav_on
 if [ "$clamav_on" = 1 ] && [ -n "${CLAMAV_HOST:-}" ] && [ -f "$rspamd_src/antivirus.conf.tpl" ]; then
   envsubst "$rspamd_subst_vars" < "$rspamd_src/antivirus.conf.tpl" > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 else
-  # Write a minimal disabled stanza so the antivirus module loads cleanly with
-  # no rules (the `enabled = false` flag suppresses the clamav check without
-  # requiring a live clamd connection).
-  printf 'clamav { enabled = false; }\n' \
+  # Disable the whole antivirus module with a top-level flag. rspamd 4.x treats
+  # `clamav { ... }` as an AV *rule* definition and fails configtest ("cannot
+  # add AV rule: clamav") when clamd is unreachable; a top-level `enabled =
+  # false;` switches the module off cleanly with no rule registered.
+  printf 'enabled = false;\n' \
     > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 fi
 
