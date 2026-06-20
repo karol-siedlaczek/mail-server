@@ -224,8 +224,11 @@ fix_ownership
 
 # ── Rspamd ──────────────────────────────────────────────────────────────────
 # Output roots (overridable for tests).
-: "${RSPAMD_LOCALD_DIR:=/etc/rspamd/local.d}"
-: "${RSPAMD_DKIM_DIR:=/etc/rspamd/dkim}"
+# Defaults honour RENDER_ROOT so full_render() tests in test_render.py never
+# try to mkdir /etc/rspamd (permission-denied on the host); inside the running
+# container RENDER_ROOT is empty and the real /etc/rspamd/local.d is used.
+: "${RSPAMD_LOCALD_DIR:=${RENDER_ROOT}/etc/rspamd/local.d}"
+: "${RSPAMD_DKIM_DIR:=${RENDER_ROOT}/etc/rspamd/dkim}"
 : "${RSPAMD_SKIP_DB:=0}"
 : "${RSPAMD_REJECT_SCORE:=15}"
 : "${REDIS_PORT:=6379}"
@@ -262,7 +265,7 @@ case "${CLAMAV_ENABLED}" in 1|true|TRUE|True|yes|on) clamav_on=1 ;; *) clamav_on
 if [ "$clamav_on" = 1 ] && [ -n "${CLAMAV_HOST:-}" ] && [ -f "$rspamd_src/antivirus.conf.tpl" ]; then
   envsubst < "$rspamd_src/antivirus.conf.tpl" > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 else
-  printf 'enabled = false;\n' > "$RSPAMD_LOCALD_DIR/antivirus.conf"
+  printf 'clamav { enabled = false; }\n' > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 fi
 
 # DKIM/ARC maps: domain->selector and domain->keypath, from the active domains.

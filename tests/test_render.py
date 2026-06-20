@@ -111,6 +111,10 @@ def full_render(tmp_path, extra=None):
         env.update(extra)
     env["PATH"] = os.environ["PATH"]
     env["RENDER_ROOT"] = str(tmp_path)
+    # Skip the Postgres DKIM-map SELECT: these tests have no live DB.
+    # RSPAMD_LOCALD_DIR/RSPAMD_DKIM_DIR default to ${RENDER_ROOT}/etc/rspamd/*
+    # so no explicit override is needed here.
+    env.setdefault("RSPAMD_SKIP_DB", "1")
     proc = subprocess.run(
         ["bash", str(ROOT / "rootfs/usr/local/bin/render-config.sh")],
         env=env, capture_output=True, text=True,

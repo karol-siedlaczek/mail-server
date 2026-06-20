@@ -141,9 +141,8 @@ def test_antivirus_disabled(tmp_path):
     subprocess.run(["bash", str(RENDER)], env=env, check=True,
                    cwd=str(REPO), capture_output=True)
     t = (localdir / "antivirus.conf").read_text()
-    # Disabled cleanly: module switched off, no clamav server line.
-    assert "clamav { enabled = false; }" in t.replace("\n", " ") \
-        or "enabled = false;" in t
+    # Disabled cleanly: spec-required block form with module context.
+    assert "clamav { enabled = false; }" in t.replace("\n", " ")
 
 def test_dkim_maps_rendered_from_db(tmp_path):
     """When not skipping the DB, render-config writes selectors.map/paths.map
