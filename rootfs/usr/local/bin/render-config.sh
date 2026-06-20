@@ -270,7 +270,10 @@ case "${CLAMAV_ENABLED}" in 1|true|TRUE|True|yes|on) clamav_on=1 ;; *) clamav_on
 if [ "$clamav_on" = 1 ] && [ -n "${CLAMAV_HOST:-}" ] && [ -f "$rspamd_src/antivirus.conf.tpl" ]; then
   envsubst "$rspamd_subst_vars" < "$rspamd_src/antivirus.conf.tpl" > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 else
-  printf 'clamav { enabled = false; }\n' > "$RSPAMD_LOCALD_DIR/antivirus.conf"
+  # Write an empty local.d override so the antivirus module loads with no rules
+  # (no `clamav { ... }` rule block → no "cannot add rule" error).
+  printf '# antivirus disabled (CLAMAV_ENABLED != true or CLAMAV_HOST not set)\n' \
+    > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 fi
 
 # DKIM/ARC maps: domain->selector and domain->keypath, from the active domains.
