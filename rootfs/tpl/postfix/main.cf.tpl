@@ -64,11 +64,16 @@ smtpd_relay_restrictions = permit_mynetworks reject_unauth_destination
 smtpd_recipient_restrictions = permit_mynetworks reject_unauth_destination
 
 # ── Limits / backstops ──────────────────────────────────────────────────────
+# Largest message accepted (envelope + content). Tunable via MESSAGE_SIZE_LIMIT.
 message_size_limit = ${MESSAGE_SIZE_LIMIT}
-smtpd_client_connection_count_limit = 50
-smtpd_client_connection_rate_limit = 60
-smtpd_client_message_rate_limit = 100
+# Per-client throttles so one source cannot exhaust the server. Trusted
+# mynetworks are exempt so internal relays / health probes are never throttled.
 anvil_rate_time_unit = 60s
+smtpd_client_connection_count_limit = 20
+smtpd_client_connection_rate_limit = 30
+smtpd_client_message_rate_limit = 100
+smtpd_client_recipient_rate_limit = 100
+smtpd_client_event_limit_exceptions = $mynetworks
 relayhost = ${RELAYHOST}
 
 # ── TLS (separate cert + key; ports 587/465 force encrypt in master.cf) ─────
