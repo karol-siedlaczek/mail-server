@@ -221,4 +221,75 @@ log "env resolved; rendering templates"
 render_templates
 ensure_tls
 fix_ownership
+
+# ── Rspamd ──────────────────────────────────────────────────────────────────
+# Output roots (overridable for tests).
+: "${RSPAMD_LOCALD_DIR:=/etc/rspamd/local.d}"
+: "${RSPAMD_DKIM_DIR:=/etc/rspamd/dkim}"
+: "${RSPAMD_SKIP_DB:=0}"
+: "${RSPAMD_REJECT_SCORE:=15}"
+: "${REDIS_PORT:=6379}"
+: "${REDIS_DB:=0}"
+: "${REDIS_PREFIX:=mail}"
+: "${CLAMAV_ENABLED:=true}"
+: "${CLAMAV_PORT:=3310}"
+: "${DMARC_REPORT_ENABLED:=false}"
+mkdir -p "$RSPAMD_LOCALD_DIR" "$RSPAMD_DKIM_DIR"
+
+# Normalise DMARC_REPORT_ENABLED to a UCL boolean literal for the template.
+case "${DMARC_REPORT_ENABLED}" in
+  1|true|TRUE|True|yes|on) DMARC_REPORT_ENABLED=true ;;
+  *)                       DMARC_REPORT_ENABLED=false ;;
+esac
+export DMARC_REPORT_ENABLED
+
+rspamd_src="$(cd "$(dirname "$0")/../../../tpl/rspamd/local.d" 2>/dev/null && pwd)" || rspamd_src=""
+# In the running image templates live at /tpl; fall back to that.
+[ -n "$rspamd_src" ] && [ -d "$rspamd_src" ] || rspamd_src="/tpl/rspamd/local.d"
+
+# Render every Rspamd template except antivirus (gated below).
+for tpl in "$rspamd_src"/*.tpl; do
+  [ -f "$tpl" ] || continue  # skip if glob expanded to a literal (no matches)
+  name="$(basename "${tpl%.tpl}")"
+  [ "$name" = "antivirus.conf" ] && continue
+  envsubst < "$tpl" > "$RSPAMD_LOCALD_DIR/$name"
+done
+
+# ClamAV antivirus: render the enabled template only when switched on AND a host
+# is set AND the template exists; otherwise write a clean disabled stanza so the
+# module never tries to dial a missing clamd.
+case "${CLAMAV_ENABLED}" in 1|true|TRUE|True|yes|on) clamav_on=1 ;; *) clamav_on=0 ;; esac
+if [ "$clamav_on" = 1 ] && [ -n "${CLAMAV_HOST:-}" ] && [ -f "$rspamd_src/antivirus.conf.tpl" ]; then
+  envsubst < "$rspamd_src/antivirus.conf.tpl" > "$RSPAMD_LOCALD_DIR/antivirus.conf"
+else
+  printf 'enabled = false;\n' > "$RSPAMD_LOCALD_DIR/antivirus.conf"
+fi
+
+# DKIM/ARC maps: domain->selector and domain->keypath, from the active domains.
+# RSPAMD_DKIM_ROWS (newline-separated "domain selector") lets tests inject rows
+# without a live DB; otherwise query Postgres with the mail_ro role.
+render_dkim_maps() {
+  : > "$RSPAMD_DKIM_DIR/selectors.map"
+  : > "$RSPAMD_DKIM_DIR/paths.map"
+  while read -r dom sel; do
+    [ -z "$dom" ] && continue
+    [ -z "$sel" ] && sel=default
+    printf '%s %s\n' "$dom" "$sel" >> "$RSPAMD_DKIM_DIR/selectors.map"
+    printf '%s /var/lib/rspamd/dkim/%s.%s.key\n' "$dom" "$dom" "$sel" \
+      >> "$RSPAMD_DKIM_DIR/paths.map"
+  done
+}
+
+if [ -n "${RSPAMD_DKIM_ROWS:-}" ]; then
+  printf '%s\n' "$RSPAMD_DKIM_ROWS" | render_dkim_maps
+elif [ "${RSPAMD_SKIP_DB}" = "1" ]; then
+  : > "$RSPAMD_DKIM_DIR/selectors.map"
+  : > "$RSPAMD_DKIM_DIR/paths.map"
+else
+  PGPASSWORD="${PG_PASSWORD}" psql -tA -F' ' \
+    -h "${PG_HOST}" -p "${PG_PORT:-5432}" -U "${PG_USER}" -d "${PG_DBNAME}" \
+    -c "SELECT domain, dkim_selector FROM domains WHERE active" \
+    | render_dkim_maps
+fi
+
 log "configuration rendered"
