@@ -37,6 +37,7 @@ lint:
 	docker compose -f $(COMPOSE_FILE) config >/dev/null && echo "  OK"
 	@echo "==> sql/yaml syntax"; \
 	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) test_harness.py
+	python3 -m pytest tests/test_readme_links.py -q
 
 ## clean: tear down any leftover integration stack + scratch
 clean:
