@@ -250,12 +250,17 @@ rspamd_src="$(cd "$(dirname "$0")/../../../tpl/rspamd/local.d" 2>/dev/null && pw
 # In the running image templates live at /tpl; fall back to that.
 [ -n "$rspamd_src" ] && [ -d "$rspamd_src" ] || rspamd_src="/tpl/rspamd/local.d"
 
+# Restrict envsubst to the same variable set used by render_templates() so that
+# bare '$' characters in future Rspamd config syntax are never accidentally
+# substituted (mirrors the pattern established in render_templates above).
+rspamd_subst_vars="$(printf '${%s} ' $DUMP_VARS)"
+
 # Render every Rspamd template except antivirus (gated below).
 for tpl in "$rspamd_src"/*.tpl; do
   [ -f "$tpl" ] || continue  # skip if glob expanded to a literal (no matches)
   name="$(basename "${tpl%.tpl}")"
   [ "$name" = "antivirus.conf" ] && continue
-  envsubst < "$tpl" > "$RSPAMD_LOCALD_DIR/$name"
+  envsubst "$rspamd_subst_vars" < "$tpl" > "$RSPAMD_LOCALD_DIR/$name"
 done
 
 # ClamAV antivirus: render the enabled template only when switched on AND a host
@@ -263,7 +268,7 @@ done
 # module never tries to dial a missing clamd.
 case "${CLAMAV_ENABLED}" in 1|true|TRUE|True|yes|on) clamav_on=1 ;; *) clamav_on=0 ;; esac
 if [ "$clamav_on" = 1 ] && [ -n "${CLAMAV_HOST:-}" ] && [ -f "$rspamd_src/antivirus.conf.tpl" ]; then
-  envsubst < "$rspamd_src/antivirus.conf.tpl" > "$RSPAMD_LOCALD_DIR/antivirus.conf"
+  envsubst "$rspamd_subst_vars" < "$rspamd_src/antivirus.conf.tpl" > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 else
   printf 'clamav { enabled = false; }\n' > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 fi

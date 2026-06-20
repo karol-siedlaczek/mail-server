@@ -46,6 +46,7 @@ RUN set -eux; \
         rspamd \
         postsrsd \
         redis-tools \
+        postgresql-client \
         clamdscan \
         python3 python3-psycopg2 \
         openssl; \

@@ -30,6 +30,10 @@ ENV = {
     "PG_USER": "mail_ro",
     "PG_PASSWORD": "s3cret",
     "REDIS_HOST": "redis",
+    # Skip the Postgres DKIM-map SELECT: these unit tests have no live DB.
+    # Without this flag render-config.sh calls psql which fails when there is
+    # no reachable Postgres host (mirrors the RSPAMD_SKIP_DB guard in test_render.py).
+    "RSPAMD_SKIP_DB": "1",
 }
 
 
