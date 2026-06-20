@@ -11,7 +11,6 @@ integration mark.
 """
 import email
 import imaplib
-import json
 import os
 import ssl
 import subprocess
