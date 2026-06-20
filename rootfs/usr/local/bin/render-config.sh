@@ -72,7 +72,14 @@ set_default GREYLISTING_ENABLED true
 set_default PG_AUDIT_USER       "${PG_USER:-}"
 set_default PG_AUDIT_PASSWORD   "${PG_PASSWORD:-}"
 
-# ── 2b. Derived variables for Dovecot templates ──────────────────────────────
+# ── 2b. Derived variables ────────────────────────────────────────────────────
+# SRS_DOMAIN: the bare domain (MAIL_HOSTNAME with the leading host label stripped).
+# postsrsd 1.x receives this via -d flag; templates that need just the domain part
+# reference ${SRS_DOMAIN}.  Example: mail.example.test -> example.test.
+SRS_DOMAIN="${MAIL_HOSTNAME#*.}"
+export SRS_DOMAIN
+
+# ── 2c. Derived variables for Dovecot templates ──────────────────────────────
 # These are computed from the primary env knobs above and passed to envsubst.
 # DOVECOT_PASSWORD_SCHEME: the scheme name passed to passdb_default_password_scheme.
 DOVECOT_PASSWORD_SCHEME="${PASSWORD_SCHEME:-ARGON2ID}"
@@ -113,7 +120,7 @@ done
 
 # ── Test hook: dump resolved env and stop before any filesystem write ────────
 # Every variable referenced by a template plus everything validated above.
-DUMP_VARS="MAIL_HOSTNAME PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWORD \
+DUMP_VARS="MAIL_HOSTNAME SRS_DOMAIN PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWORD \
   PG_AUDIT_USER PG_AUDIT_PASSWORD REDIS_HOST REDIS_PORT REDIS_DB REDIS_PREFIX \
   REDIS_PASSWORD CLAMAV_ENABLED CLAMAV_HOST CLAMAV_PORT TLS_CERT_FILE \
   TLS_KEY_FILE RELAYHOST RELAYHOST_USER RELAYHOST_PASSWORD PASSWORD_SCHEME \
