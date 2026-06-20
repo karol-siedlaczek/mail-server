@@ -336,6 +336,17 @@ else
     > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 fi
 
+# --- GREYLISTING_ENABLED gate (Phase K) --------------------------------------
+# Greylisting is the default. When disabled, overwrite the rendered config with
+# a minimal disable stub so Rspamd loads cleanly but performs no greylisting.
+case "${GREYLISTING_ENABLED:-true}" in
+    1|true|TRUE|True|yes|on) ;;
+    *)
+        log "render-config: GREYLISTING_ENABLED=false → greylisting off"
+        printf 'enabled = false;\n' > "$RSPAMD_LOCALD_DIR/greylist.conf"
+        ;;
+esac
+
 # DKIM/ARC maps: domain->selector and domain->keypath, from the active domains.
 # RSPAMD_DKIM_ROWS (newline-separated "domain selector") lets tests inject rows
 # without a live DB; otherwise query Postgres with the mail_ro role.
