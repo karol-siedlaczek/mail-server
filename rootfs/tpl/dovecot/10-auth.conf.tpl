@@ -31,3 +31,11 @@ service auth {
 
 # Optional protocol service listeners. Empty when disabled.
 ${DOVECOT_POP3_SERVICES}
+
+# Audit: auth-policy server (gated by AUDIT_ENABLED via render-config).
+# When AUDIT_ENABLED=true, render-config sets AUDIT_POLICY_BLOCK to the block
+# from tpl/dovecot/_auth_policy_block.inc; when false it sets it empty so
+# Dovecot fires no auth-policy requests. Dovecot POSTs a JSON report after
+# EVERY authentication (success + failure) to audit-svc on 127.0.0.1:4001,
+# which writes an event_type='auth' audit_logs row.
+${AUDIT_POLICY_BLOCK}

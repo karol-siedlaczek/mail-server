@@ -110,6 +110,28 @@ else
 fi
 export DOVECOT_POP3_PROTOCOLS DOVECOT_POP3_SERVICES
 
+# ── 2d. Derived variables for audit-svc (Dovecot auth-policy) ───────────────
+# AUDIT_POLICY_NONCE: random per-deploy nonce for auth_policy_hash_nonce.
+# Preserved across render-config re-runs when passed in from outside; generated
+# once on first boot otherwise (the nonce only needs to be stable per container
+# lifecycle, not across restarts).
+AUDIT_POLICY_NONCE="${AUDIT_POLICY_NONCE:-$(head -c16 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
+export AUDIT_POLICY_NONCE
+# AUDIT_POLICY_BLOCK: the Dovecot auth_policy_* stanza, rendered from the
+# _auth_policy_block.inc include, substituted into 10-auth.conf.tpl when
+# AUDIT_ENABLED is truthy; empty string otherwise.
+_SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+_AUTH_POLICY_INC="${_SELF_DIR}/../../../tpl/dovecot/_auth_policy_block.inc"
+# In the container the templates live at /tpl (COPY rootfs/ /).
+[ -f "$_AUTH_POLICY_INC" ] || _AUTH_POLICY_INC="/tpl/dovecot/_auth_policy_block.inc"
+case "${AUDIT_ENABLED:-true}" in
+    1|true|TRUE|True|yes|on)
+        AUDIT_POLICY_BLOCK="$(AUDIT_POLICY_NONCE="$AUDIT_POLICY_NONCE" envsubst < "$_AUTH_POLICY_INC")" ;;
+    *)
+        AUDIT_POLICY_BLOCK="" ;;
+esac
+export AUDIT_POLICY_BLOCK
+
 # ── 3. Validate required variables ───────────────────────────────────────────
 REQUIRED_VARS="MAIL_HOSTNAME PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWORD"
 missing=""
@@ -129,7 +151,8 @@ DUMP_VARS="MAIL_HOSTNAME SRS_DOMAIN PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWOR
   POP3_ENABLED POSTSCREEN_ENABLED GREYLISTING_ENABLED MAIL_BOOTSTRAP_DOMAIN \
   MAIL_BOOTSTRAP_ADMIN MAIL_BOOTSTRAP_PASSWORD \
   DOVECOT_PASSWORD_SCHEME DOVECOT_AUTH_ALLOW_WEAK \
-  DOVECOT_POP3_PROTOCOLS DOVECOT_POP3_SERVICES"
+  DOVECOT_POP3_PROTOCOLS DOVECOT_POP3_SERVICES \
+  AUDIT_POLICY_BLOCK AUDIT_POLICY_NONCE"
 if [ "${RENDER_DUMP_ENV:-}" = "1" ]; then
     for var in $DUMP_VARS; do
         printf '%s=%s\n' "$var" "${!var:-}"
