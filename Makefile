@@ -7,7 +7,7 @@ COMPOSE_FILE := $(TESTS_DIR)/compose.test.yml
 PYTEST       ?= python3 -m pytest
 PYTEST_FLAGS ?= -q
 
-.PHONY: build test test-render itest lint clean
+.PHONY: build test test-render itest buildx-smoke lint clean
 
 ## build: build the image as $(IMAGE)
 build:
@@ -21,9 +21,20 @@ test-render:
 test:
 	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) -m "not integration"
 
-## itest: full integration tests via the compose stack
+# Full happy-path integration test against the compose stack. The session
+# fixture in tests/conftest.py builds the image and brings the stack up; the
+# trailing `down -v` is a belt-and-braces cleanup if pytest is interrupted.
+## itest: full integration tests via the compose stack (includes e2e suite)
 itest:
-	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) -m "integration and not optional"
+	cd $(TESTS_DIR) && $(PYTEST) -v test_e2e.py
+	@docker compose -f $(COMPOSE_FILE) down -v >/dev/null 2>&1 || true
+
+# Build-only multi-arch smoke: proves the Dockerfile builds for both target
+# platforms (no push, no load — buildkit discards the result). Catches arch
+# regressions (e.g. the Rspamd SVE2 / arm64 pin) before tagging a release.
+## buildx-smoke: build-only multi-arch smoke (amd64 + arm64)
+buildx-smoke:
+	docker buildx build --platform linux/amd64,linux/arm64 $(IMAGE_DIR)
 
 ## lint: shellcheck scripts, validate compose, sanity-check SQL/YAML
 lint:
