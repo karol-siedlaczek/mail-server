@@ -97,17 +97,26 @@ smtpd_tls_loglevel = 1
 smtp_tls_security_level = may
 
 # ── postscreen on :25 (pregreet + weighted DNSBL); enabled in master.cf ─────
+# Pre-greet test: a client that talks before our banner is a spambot → enforce
+# (the offending command is rejected, the client is denied until it retries
+# cleanly). Combined with a weighted DNSBL score and deep protocol tests.
 postscreen_greet_action = enforce
+postscreen_dnsbl_sites =
+    zen.spamhaus.org*2
+    b.barracudacentral.org*1
+    bl.spamcop.net*1
 postscreen_dnsbl_threshold = 3
 postscreen_dnsbl_allowlist_threshold = -1
-postscreen_dnsbl_sites = zen.spamhaus.org*2 b.barracudacentral.org*1 bl.spamcop.net*1
 postscreen_dnsbl_action = enforce
+# Deep protocol tests (only seen by clients that pass the cheap tests above).
 postscreen_pipelining_enable = yes
 postscreen_pipelining_action = enforce
 postscreen_non_smtp_command_enable = yes
 postscreen_non_smtp_command_action = drop
 postscreen_bare_newline_enable = yes
 postscreen_bare_newline_action = enforce
+# Cache verdicts so good clients aren't re-tested on every connection.
+postscreen_cache_map = btree:$data_directory/postscreen_cache
 
 # ── Misc ────────────────────────────────────────────────────────────────────
 maillog_file = /dev/stdout
