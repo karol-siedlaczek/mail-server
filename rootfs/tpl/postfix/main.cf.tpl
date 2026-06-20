@@ -76,23 +76,25 @@ smtpd_client_recipient_rate_limit = 100
 smtpd_client_event_limit_exceptions = $mynetworks
 relayhost = ${RELAYHOST}
 
-# ── TLS (separate cert + key; ports 587/465 force encrypt in master.cf) ─────
-# NOTE: use cert_file/key_file, NOT smtpd_tls_chain_files — chain_files treats
-# each listed file as a complete key+cert bundle (multiple entries = different
-# key algorithms), so a cert-only + key-only pair makes Postfix load two broken
-# chains ("TLS not available due to local problem"). fullchain/privkey are the
-# classic separate-file inputs.
-smtpd_tls_cert_file = ${TLS_CERT_FILE}
-smtpd_tls_key_file = ${TLS_KEY_FILE}
+# ── TLS hardening (Phase K) ─────────────────────────────────────────────────
+# Floor every TLS handshake at TLSv1.2; refuse SSLv2/3 + TLS1.0/1.1. Prefer
+# the server's strong cipher ordering and drop anonymous/MD5 suites outright.
+# Cert + key as a chain file list (key first). Fed from TLS_KEY_FILE/TLS_CERT_FILE;
+# render-config generates a self-signed pair if the mounted files are absent.
+smtpd_tls_chain_files =
+    ${TLS_KEY_FILE}
+    ${TLS_CERT_FILE}
 smtpd_tls_security_level = may
 smtpd_tls_protocols = >=TLSv1.2
 smtpd_tls_mandatory_protocols = >=TLSv1.2
+smtp_tls_protocols = >=TLSv1.2
+smtp_tls_mandatory_protocols = >=TLSv1.2
 smtpd_tls_mandatory_ciphers = high
+smtpd_tls_ciphers = high
 smtpd_tls_exclude_ciphers = aNULL, MD5
 tls_preempt_cipherlist = yes
 smtpd_tls_loglevel = 1
 smtp_tls_security_level = may
-smtp_tls_protocols = >=TLSv1.2
 
 # ── postscreen on :25 (pregreet + weighted DNSBL); enabled in master.cf ─────
 postscreen_greet_action = enforce
