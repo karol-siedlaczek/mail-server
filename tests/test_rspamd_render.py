@@ -82,3 +82,65 @@ def test_spf(rendered):
     assert "spf" in t.lower()
     # whitelist/disabled toggles left at defaults; module simply present/enabled.
     assert "disabled = false;" in t
+
+def test_dkim_signing(rendered):
+    t = read(rendered, "dkim_signing.conf")
+    assert "sign_authenticated = true;" in t
+    assert "sign_local = true;" in t
+    assert "use_domain = \"header\";" in t
+    assert "try_fallback = false;" in t
+    assert 'selector_map = "/etc/rspamd/dkim/selectors.map";' in t
+    assert 'path_map = "/etc/rspamd/dkim/paths.map";' in t
+
+def test_arc(rendered):
+    t = read(rendered, "arc.conf")
+    assert "sign_inbound = true;" in t
+    assert "sign_authenticated = true;" in t
+    assert 'selector_map = "/etc/rspamd/dkim/selectors.map";' in t
+    assert 'path_map = "/etc/rspamd/dkim/paths.map";' in t
+
+def test_dmarc_reporting_enabled(rendered):
+    # BASE_ENV sets DMARC_REPORT_ENABLED=true.
+    t = read(rendered, "dmarc.conf")
+    assert "reporting {" in t
+    assert "enabled = true;" in t
+    assert 'email = "dmarc@example.test";' in t
+    assert 'from_name = "mail.example.test";' in t or 'org_name' in t
+
+def test_dmarc_reporting_disabled(tmp_path):
+    # Re-render with DMARC_REPORT_ENABLED=false and assert reporting is off.
+    localdir = tmp_path / "rspamd" / "local.d"
+    dkimdir = tmp_path / "rspamd" / "dkim"
+    localdir.mkdir(parents=True); dkimdir.mkdir(parents=True)
+    env = dict(os.environ); env.update(BASE_ENV)
+    env["DMARC_REPORT_ENABLED"] = "false"
+    env["RSPAMD_LOCALD_DIR"] = str(localdir)
+    env["RSPAMD_DKIM_DIR"] = str(dkimdir)
+    env["RSPAMD_SKIP_DB"] = "1"
+    env["RENDER_ROOT"] = str(tmp_path / "render_root")
+    subprocess.run(["bash", str(RENDER)], env=env, check=True,
+                   cwd=str(REPO), capture_output=True)
+    t = (localdir / "dmarc.conf").read_text()
+    assert "enabled = false;" in t
+
+def test_antivirus_enabled(rendered):
+    t = read(rendered, "antivirus.conf")
+    assert 'type = "clamav";' in t
+    assert 'servers = "clamav:3310";' in t
+
+def test_antivirus_disabled(tmp_path):
+    localdir = tmp_path / "rspamd" / "local.d"
+    dkimdir = tmp_path / "rspamd" / "dkim"
+    localdir.mkdir(parents=True); dkimdir.mkdir(parents=True)
+    env = dict(os.environ); env.update(BASE_ENV)
+    env["CLAMAV_ENABLED"] = "false"
+    env["RSPAMD_LOCALD_DIR"] = str(localdir)
+    env["RSPAMD_DKIM_DIR"] = str(dkimdir)
+    env["RSPAMD_SKIP_DB"] = "1"
+    env["RENDER_ROOT"] = str(tmp_path / "render_root")
+    subprocess.run(["bash", str(RENDER)], env=env, check=True,
+                   cwd=str(REPO), capture_output=True)
+    t = (localdir / "antivirus.conf").read_text()
+    # Disabled cleanly: module switched off, no clamav server line.
+    assert "clamav { enabled = false; }" in t.replace("\n", " ") \
+        or "enabled = false;" in t
