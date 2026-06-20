@@ -290,5 +290,26 @@ use, then turn it off as users re-set passwords.
 
 ## Publishing
 
-Tag `mail-server/v<semver>` to build and push (see the repository README).
-Multi-arch `linux/amd64,linux/arm64`. No build variants.
+Tag `mail-server/v<semver>` to build and push (see the repository README). The
+CI pipeline is unchanged: it builds and pushes a multi-arch
+(`linux/amd64,linux/arm64`) image on any `mail-server/v*` tag. No build variants.
+
+> [!IMPORTANT]
+> Rspamd ≥3.13 has crashed with *Illegal instruction* (the SVE2 codepath) on some
+> ARMv8 CPUs. The Dockerfile pins a known-good Rspamd version; before cutting a
+> release, run the build-only multi-arch smoke and the integration suite so an
+> arm64 regression is caught before the tag is pushed:
+
+```bash
+make -C images/mail-server buildx-smoke   # docker buildx --platform amd64,arm64 (build only)
+make -C images/mail-server itest          # full happy-path e2e against compose
+
+# Release: cut and push the tag (CI does the multi-arch build + push to the registry)
+git tag mail-server/v0.1.0
+git push origin mail-server/v0.1.0
+```
+
+For a tag like `mail-server/v0.1.0` the pipeline publishes `mail-server:0.1.0`,
+`mail-server:0.1`, `mail-server:latest`, and `mail-server:<short-sha>` to
+`registry.siedlaczek.com.pl`. To re-run a build, move and force-push the tag
+(`git tag -f mail-server/v0.1.0 && git push -f origin mail-server/v0.1.0`).
