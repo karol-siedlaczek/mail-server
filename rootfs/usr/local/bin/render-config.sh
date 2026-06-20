@@ -270,9 +270,10 @@ case "${CLAMAV_ENABLED}" in 1|true|TRUE|True|yes|on) clamav_on=1 ;; *) clamav_on
 if [ "$clamav_on" = 1 ] && [ -n "${CLAMAV_HOST:-}" ] && [ -f "$rspamd_src/antivirus.conf.tpl" ]; then
   envsubst "$rspamd_subst_vars" < "$rspamd_src/antivirus.conf.tpl" > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 else
-  # Write an empty local.d override so the antivirus module loads with no rules
-  # (no `clamav { ... }` rule block → no "cannot add rule" error).
-  printf '# antivirus disabled (CLAMAV_ENABLED != true or CLAMAV_HOST not set)\n' \
+  # Write a minimal disabled stanza so the antivirus module loads cleanly with
+  # no rules (the `enabled = false` flag suppresses the clamav check without
+  # requiring a live clamd connection).
+  printf 'clamav { enabled = false; }\n' \
     > "$RSPAMD_LOCALD_DIR/antivirus.conf"
 fi
 

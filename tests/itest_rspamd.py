@@ -31,6 +31,8 @@ from conftest import MAIL_HOST, SUBMISSION_PORT, SMTP_PORT, IMAPS_PORT, COMPOSE_
 ALICE = "alice@example.test"
 # Seed password (seed.sql, phase A): plaintext 'secret'
 ALICE_PW = os.environ.get("MAIL_TEST_ALICE_PW", "secret")
+BOB = "bob@example.test"
+BOB_PW = os.environ.get("MAIL_TEST_BOB_PW", "secret")
 
 GTUBE = "XJS*C4JDBQADN1.NSBN3*2IDNEN*GTUBE-STANDARD-ANTI-UBE-TEST-EMAIL*C.34X"
 
@@ -68,9 +70,24 @@ def _ensure_dkim_key(domain="example.test", selector="test"):
     # Signal rspamd to reload its config so it picks up the new key.
     subprocess.run(
         ["docker", "compose", "-f", COMPOSE_FILE, "exec", "-T",
-         "mail-server", "bash", "-c", "pkill -HUP rspamd 2>/dev/null; sleep 2"],
+         "mail-server", "bash", "-c", "pkill -HUP rspamd 2>/dev/null || true"],
         capture_output=True,
     )
+    # Wait for rspamd to finish reloading: poll rspamadm configtest (which
+    # succeeds only when rspamd's worker is fully restarted and the key is
+    # loaded) rather than sleeping for an arbitrary duration.
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        check = subprocess.run(
+            ["docker", "compose", "-f", COMPOSE_FILE, "exec", "-T",
+             "mail-server", "rspamadm", "configtest"],
+            capture_output=True,
+        )
+        if check.returncode == 0:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError("rspamd did not pass configtest within 30s after HUP")
 
 
 def _imap_fetch_by_subject(subject, user=ALICE, pw=ALICE_PW, timeout=30):
