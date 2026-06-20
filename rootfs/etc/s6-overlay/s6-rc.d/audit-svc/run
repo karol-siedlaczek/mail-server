@@ -1,4 +1,22 @@
-#!/command/execlineb -P
-with-contenv
-fdmove -c 2 1
-python3 -u /usr/local/bin/audit-svc.py
+#!/command/with-contenv sh
+# audit-svc longrun: Dovecot auth-policy endpoint (127.0.0.1:4001) + Postfix
+# maillog correlator. Reads Postfix log lines from a FIFO the postfix run
+# script writes into; writes audit_logs rows via the mail_audit role.
+set -eu
+
+# Honour the master gate. When auditing is off, idle rather than restart-loop.
+case "${AUDIT_ENABLED:-true}" in
+    0|false|FALSE|False|no|off)
+        echo "audit-svc: AUDIT_ENABLED is false; idling" >&2
+        exec sleep infinity
+        ;;
+esac
+
+FIFO=/run/audit/maillog.fifo
+mkdir -p /run/audit
+[ -p "$FIFO" ] || { rm -f "$FIFO"; mkfifo -m 0600 "$FIFO"; }
+
+# Hold the FIFO open for writing on a spare fd so our reader never sees EOF
+# when Postfix's tee momentarily closes it; then stream the FIFO into audit-svc.
+exec 9<>"$FIFO"
+exec python3 /usr/local/bin/audit-svc.py < "$FIFO"
