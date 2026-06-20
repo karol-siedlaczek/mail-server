@@ -1,0 +1,20 @@
+#!/command/with-contenv sh
+# postgres-ready oneshot: poll until the Postgres endpoint accepts a TCP
+# connection. Gives services that depend on a live DB (e.g. audit-svc) a
+# clean dependency edge without embedding retry logic in every consumer.
+# In production the DB is external and expected to be up before the container
+# starts; this poll handles the brief race on first boot or compose-up.
+set -eu
+PG_HOST="${PG_HOST:-localhost}"
+PG_PORT="${PG_PORT:-5432}"
+TIMEOUT=60
+i=0
+until nc -z "$PG_HOST" "$PG_PORT" 2>/dev/null; do
+    i=$((i + 1))
+    if [ "$i" -ge "$TIMEOUT" ]; then
+        echo "postgres-ready: timed out waiting for $PG_HOST:$PG_PORT" >&2
+        exit 1
+    fi
+    sleep 1
+done
+echo "postgres-ready: $PG_HOST:$PG_PORT is up" >&2

@@ -40,3 +40,14 @@ ON CONFLICT (source, destination) DO NOTHING;
 INSERT INTO sender_login_maps (login_email, allowed_sender, active)
 VALUES ('bob@example.test', 'alice@example.test', true)
 ON CONFLICT (login_email, allowed_sender) DO NOTHING;
+
+-- audit-svc writes via mail_audit; ensure the role exists with INSERT in tests.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail_audit') THEN
+    CREATE ROLE mail_audit LOGIN PASSWORD 'mail_audit_test_pw';
+  END IF;
+END
+$$;
+GRANT INSERT, SELECT ON audit_logs TO mail_audit;
+GRANT USAGE, SELECT ON SEQUENCE audit_logs_id_seq TO mail_audit;
