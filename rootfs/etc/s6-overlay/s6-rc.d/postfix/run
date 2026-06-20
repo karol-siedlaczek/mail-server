@@ -1,5 +1,13 @@
-#!/command/execlineb -P
-with-contenv
-fdmove -c 2 1
-foreground { postfix check }
-postfix start-fg
+#!/command/with-contenv sh
+set -eu
+postfix check
+# Audit: when enabled, mirror every Postfix log line into the audit FIFO that
+# audit-svc reads, in addition to container stdout. Best-effort: if the FIFO is
+# absent (audit-svc not up yet / disabled) the tee target falls back to /dev/null
+# so Postfix logging is never blocked.
+AUDIT_FIFO=/run/audit/maillog.fifo
+case "${AUDIT_ENABLED:-true}" in
+    0|false|FALSE|False|no|off) AUDIT_FIFO=/dev/null ;;
+    *) mkdir -p /run/audit; [ -p "$AUDIT_FIFO" ] || AUDIT_FIFO=/dev/null ;;
+esac
+exec postfix start-fg 2>&1 | tee -a "$AUDIT_FIFO"
