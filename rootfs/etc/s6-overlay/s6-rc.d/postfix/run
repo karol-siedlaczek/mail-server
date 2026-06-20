@@ -1,13 +1,23 @@
-#!/command/with-contenv sh
-set -eu
-postfix check
-# Audit: when enabled, mirror every Postfix log line into the audit FIFO that
-# audit-svc reads, in addition to container stdout. Best-effort: if the FIFO is
-# absent (audit-svc not up yet / disabled) the tee target falls back to /dev/null
-# so Postfix logging is never blocked.
-AUDIT_FIFO=/run/audit/maillog.fifo
-case "${AUDIT_ENABLED:-true}" in
-    0|false|FALSE|False|no|off) AUDIT_FIFO=/dev/null ;;
-    *) mkdir -p /run/audit; [ -p "$AUDIT_FIFO" ] || AUDIT_FIFO=/dev/null ;;
+#!/command/execlineb -P
+with-contenv
+fdmove -c 2 1
+foreground { postfix check }
+# Tee postfix stdout into the audit FIFO (when audit is enabled) or /dev/null.
+# Using execlineb pipeline keeps postfix as s6's direct supervised child so
+# s6 restarts the real postfix master on exit, not a shell wrapper.
+#
+# The shell one-liner resolves AUDIT_ENABLED and prints the tee target path so
+# execlineb can capture it via backtick; the FIFO is created here so the tee
+# open below never races against audit-svc's own mkfifo.
+backtick -n AUDIT_FIFO {
+  /bin/sh -c "
+case \"\${AUDIT_ENABLED:-true}\" in
+  0|false|FALSE|False|no|off) printf /dev/null; exit ;;
 esac
-exec postfix start-fg 2>&1 | tee -a "$AUDIT_FIFO"
+mkdir -p /run/audit
+[ -p /run/audit/maillog.fifo ] || mkfifo -m 0600 /run/audit/maillog.fifo
+printf /run/audit/maillog.fifo"
+}
+importas AUDIT_FIFO AUDIT_FIFO
+pipeline { postfix start-fg }
+tee -a $AUDIT_FIFO

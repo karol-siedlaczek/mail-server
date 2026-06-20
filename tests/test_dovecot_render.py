@@ -90,6 +90,27 @@ def test_auth_pop3_gated_on(render_dovecot):
     assert "port = 995" in out
 
 
+# ── J.3: AUDIT_POLICY_BLOCK rendering in 10-auth.conf ────────────────────────
+
+def test_audit_policy_block_rendered_when_enabled(render_dovecot):
+    """When AUDIT_POLICY_BLOCK is set, 10-auth.conf contains the auth-policy stanza."""
+    block = (
+        "auth_policy_server_url = http://127.0.0.1:4001/\n"
+        "auth_policy_hash_nonce = deadbeef\n"
+        "auth_policy_report_after_auth = yes\n"
+    )
+    out = render_dovecot("10-auth.conf.tpl", {"AUDIT_POLICY_BLOCK": block})
+    assert "auth_policy_server_url = http://127.0.0.1:4001/" in out
+    assert "auth_policy_hash_nonce = deadbeef" in out
+    assert "auth_policy_report_after_auth = yes" in out
+
+
+def test_audit_policy_block_absent_when_disabled(render_dovecot):
+    """When AUDIT_POLICY_BLOCK is empty, 10-auth.conf contains no auth-policy URL."""
+    out = render_dovecot("10-auth.conf.tpl", {"AUDIT_POLICY_BLOCK": ""})
+    assert "auth_policy_server_url" not in out
+
+
 # ── F.3: 10-mail.conf ─────────────────────────────────────────────────────────
 
 def test_mail_location_maildir(render_dovecot):

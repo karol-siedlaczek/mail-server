@@ -86,6 +86,43 @@ def test_audit_creds_default_to_pg_creds():
     assert dump["PG_AUDIT_PASSWORD"] == "s3cret"
 
 
+def test_audit_policy_nonce_generated_when_audit_enabled():
+    """AUDIT_POLICY_NONCE is auto-generated (non-empty) when AUDIT_ENABLED is true."""
+    env = base_env()
+    dump = parse_dump(run_render(env=env).stdout)
+    assert dump["AUDIT_ENABLED"] == "true"
+    assert dump["AUDIT_POLICY_NONCE"] != "", "AUDIT_POLICY_NONCE must be non-empty"
+
+
+def test_audit_policy_nonce_preserved_when_provided():
+    """An explicit AUDIT_POLICY_NONCE is passed through unchanged."""
+    env = base_env()
+    env["AUDIT_POLICY_NONCE"] = "deadbeef1234"
+    dump = parse_dump(run_render(env=env).stdout)
+    assert dump["AUDIT_POLICY_NONCE"] == "deadbeef1234"
+
+
+def test_audit_policy_block_populated_when_enabled():
+    """AUDIT_POLICY_BLOCK contains the auth-policy URL when AUDIT_ENABLED=true."""
+    env = base_env()
+    env["AUDIT_ENABLED"] = "true"
+    dump = parse_dump(run_render(env=env).stdout)
+    assert "auth_policy_server_url" in dump["AUDIT_POLICY_BLOCK"], (
+        "AUDIT_POLICY_BLOCK must contain auth_policy_server_url when AUDIT_ENABLED=true"
+    )
+    assert "http://127.0.0.1:4001/" in dump["AUDIT_POLICY_BLOCK"]
+
+
+def test_audit_policy_block_empty_when_disabled():
+    """AUDIT_POLICY_BLOCK is empty when AUDIT_ENABLED=false."""
+    env = base_env()
+    env["AUDIT_ENABLED"] = "false"
+    dump = parse_dump(run_render(env=env).stdout)
+    assert dump["AUDIT_POLICY_BLOCK"] == "", (
+        "AUDIT_POLICY_BLOCK must be empty when AUDIT_ENABLED=false"
+    )
+
+
 def test_missing_required_hostname_is_fatal():
     env = base_env()
     del env["MAIL_HOSTNAME"]
