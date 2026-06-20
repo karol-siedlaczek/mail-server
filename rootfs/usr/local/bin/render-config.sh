@@ -189,6 +189,9 @@ render_templates() {
     local src dest abs_dest
     while read -r src dest _rest; do
         case "$src" in ''|'#'*) continue ;; esac
+        # Defensive: strip a trailing CR so a CRLF render.map never produces
+        # dest paths (and rendered filenames) with an embedded '\r'.
+        src="${src%$'\r'}"; dest="${dest%$'\r'}"
         [ -n "$dest" ] || die "render.map entry for '$src' has no dest"
         # sql/ may live outside rootfs/ (test env); use SQL_ROOT for sql/ paths.
         local src_path
