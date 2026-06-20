@@ -28,8 +28,11 @@ def _have_docker():
     return _docker("image", "inspect", IMAGE).returncode == 0
 
 
-pytestmark = pytest.mark.skipif(not _have_docker(),
-                                reason="docker or built image unavailable")
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(not _have_docker(),
+                       reason="docker or built image unavailable"),
+]
 
 
 @pytest.fixture()

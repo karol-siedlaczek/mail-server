@@ -30,7 +30,7 @@ first-boot bootstrap seed.
   through it), IMAP, LMTP delivery to Maildir, ManageSieve, quota.
 - **Rspamd** — milter: spam scoring, DKIM signing, SPF/DKIM/DMARC/ARC verify,
   ARC sealing, greylisting, ratelimiting, ClamAV glue. State in Redis.
-- **postsrsd 2.x** — SRS envelope rewriting so forwarded bounces stay SPF-aligned.
+- **postsrsd 1.x** — SRS envelope rewriting so forwarded bounces stay SPF-aligned.
 - **audit-svc** — tiny Python service writing `audit_logs` rows (auth via the
   Dovecot auth-policy endpoint; send/delivery via maillog correlation).
 
