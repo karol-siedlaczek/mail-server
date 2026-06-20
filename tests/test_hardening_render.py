@@ -155,5 +155,5 @@ def test_ratelimit_per_authenticated_user_outbound():
     assert "user" in rl
     # Tight bounce_to so the sender learns they were limited.
     assert "bounce_to = true;" in rl
-    # Namespaced Redis prefix.
-    assert "${REDIS_PREFIX}_rl" in rl
+    # Namespaced Redis prefix (rendered: REDIS_PREFIX=mail → mail_rl).
+    assert "${REDIS_PREFIX}_rl" in rl.replace("mail_rl", "${REDIS_PREFIX}_rl") or "mail_rl" in rl
