@@ -47,9 +47,13 @@ def pg_and_net():
                     "-e", "POSTGRES_PASSWORD=mailpw",
                     PG_IMAGE)
         assert r.returncode == 0, r.stderr
-        # Wait for readiness.
+        # Wait for readiness. pg_isready goes green during the image's init
+        # phase, BEFORE POSTGRES_DB ('mail') is created — under heavy load the
+        # schema apply then races ahead and hits "database mail does not exist".
+        # Poll an actual query against the target DB instead.
         for _ in range(60):
-            if _docker("exec", pg, "pg_isready", "-U", "mail").returncode == 0:
+            if _docker("exec", pg, "psql", "-U", "mail", "-d", "mail",
+                       "-c", "SELECT 1").returncode == 0:
                 break
             time.sleep(1)
         else:
