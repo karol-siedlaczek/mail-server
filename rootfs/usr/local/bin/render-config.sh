@@ -204,33 +204,30 @@ render_templates() {
     done < "$RENDER_MAP"
 }
 
-# ── 4b. Postfix :25 inbound — postscreen vs plain smtpd ──────────────────────
-# master.cf.tpl carries the marker @@MASTER_INBOUND_25@@ for the :25 stanza.
-# When POSTSCREEN_ENABLED is true we front :25 with postscreen (pregreet + the
-# DNSBL/deep tests configured in phase K); otherwise :25 is a plain smtpd so a
-# single, non-retrying delivery attempt is accepted (postscreen deliberately
-# greylists first contact with 450, which only retrying MTAs survive).
+# ── 4b. Postfix :25 inbound — POSTSCREEN_ENABLED gate (Phase K) ──────────────
+# master.cf.tpl carries the postscreen front-end on :25 by default. When
+# POSTSCREEN_ENABLED=false, collapse back to a plain smtpd so port 25 still
+# accepts mail (just without botnet pre-screening). The helper services
+# (smtpd pass / tlsproxy / dnsblog) are then unused; strip them to keep
+# `postfix check` clean.
 gate_postscreen() {
     local mc="${RENDER_ROOT}/etc/postfix/master.cf"
     [ -f "$mc" ] || return 0
-    local block
     case "${POSTSCREEN_ENABLED:-true}" in
         1|true|TRUE|True|yes|on)
-            block='smtp       inet  n       -       n       -       1       postscreen
-smtpd      pass  -       -       n       -       -       smtpd
-  -o smtpd_sasl_auth_enable=no
-dnsblog    unix  -       -       n       -       0       dnsblog' ;;
+            log "render-config: POSTSCREEN_ENABLED=true → :25 runs postscreen"
+            ;;
         *)
-            block='smtp       inet  n       -       n       -       -       smtpd
-  -o smtpd_sasl_auth_enable=no' ;;
+            log "render-config: POSTSCREEN_ENABLED=false → :25 runs plain smtpd"
+            sed -i \
+                -e '/^smtpd     pass  /d' \
+                -e '/^  -o smtpd_sasl_auth_enable=no$/d' \
+                -e '/^tlsproxy  unix  .* tlsproxy$/d' \
+                -e '/^dnsblog   unix  .* dnsblog$/d' \
+                -e 's/^smtp      inet  n       -       y       -       1       postscreen$/smtp      inet  n       -       y       -       -       smtpd/' \
+                "$mc"
+            ;;
     esac
-    BLOCK="$block" python3 - "$mc" <<'PY'
-import os, sys
-p = sys.argv[1]
-text = open(p).read()
-text = text.replace("@@MASTER_INBOUND_25@@", os.environ["BLOCK"])
-open(p, "w").write(text)
-PY
     log "rendered :25 inbound stanza (postscreen=${POSTSCREEN_ENABLED:-true})"
 }
 
