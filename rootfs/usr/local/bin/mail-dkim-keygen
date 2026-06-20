@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# mail-dkim-keygen <domain> [selector]
+#
+# Generate a DKIM/ARC signing keypair for <domain> using `rspamadm dkim_keygen`
+# and print the DNS TXT record the operator must publish.  The private key is
+# written to the persistent Rspamd key volume as
+#   /var/lib/rspamd/dkim/<domain>.<selector>.key
+# which is exactly what render-config's paths.map points Rspamd at.  After
+# generating a key, INSERT/UPDATE the domain's dkim_selector in Postgres (or use
+# mail-admin) and restart Rspamd so the new selector is picked up.
+set -euo pipefail
+
+# Key directory is overridable for tests; defaults to the persistent volume.
+KEYDIR="${RSPAMD_DKIM_DIR_KEYS:-/var/lib/rspamd/dkim}"
+BITS="${DKIM_KEY_BITS:-2048}"
+
+usage() {
+  echo "usage: mail-dkim-keygen <domain> [selector]   (selector default: 'default')" >&2
+  exit 2
+}
+
+domain="${1:-}"
+selector="${2:-default}"
+[ -n "$domain" ] || usage
+
+mkdir -p "$KEYDIR"
+key="${KEYDIR}/${domain}.${selector}.key"
+
+if [ -e "$key" ]; then
+  echo "ERROR: key already exists: $key (refusing to overwrite a live signing key)" >&2
+  echo "       remove it deliberately if you intend to rotate, then re-run." >&2
+  exit 1
+fi
+
+# rspamadm writes the private key to -k and prints the DNS TXT record to stdout.
+echo "Generating ${BITS}-bit DKIM key for ${domain} (selector ${selector})..." >&2
+rspamadm dkim_keygen -d "$domain" -s "$selector" -k "$key" -b "$BITS"
+
+# Lock down the private key (Rspamd runs as _rspamd and only needs read).
+chmod 0640 "$key"
+if id _rspamd >/dev/null 2>&1; then
+  chown root:_rspamd "$key" 2>/dev/null || true
+fi
+
+echo >&2
+echo "Private key written: $key" >&2
+echo "Publish the TXT record above at: ${selector}._domainkey.${domain}" >&2
+echo "Then set domains.dkim_selector='${selector}' for '${domain}' and restart Rspamd." >&2
