@@ -144,3 +144,30 @@ def test_antivirus_disabled(tmp_path):
     # Disabled cleanly: module switched off, no clamav server line.
     assert "clamav { enabled = false; }" in t.replace("\n", " ") \
         or "enabled = false;" in t
+
+def test_dkim_maps_rendered_from_db(tmp_path):
+    """When not skipping the DB, render-config writes selectors.map/paths.map
+    from `SELECT domain, dkim_selector FROM domains WHERE active`.
+
+    We don't stand up Postgres in the unit test: instead we feed render-config a
+    pre-seeded query result via RSPAMD_DKIM_ROWS (one 'domain selector' per line),
+    a hook render-config honours so the map rendering is unit-testable without a
+    live DB.  (Integration coverage hits a real Postgres in itest_rspamd.py.)
+    """
+    localdir = tmp_path / "rspamd" / "local.d"
+    dkimdir = tmp_path / "rspamd" / "dkim"
+    localdir.mkdir(parents=True); dkimdir.mkdir(parents=True)
+    env = dict(os.environ); env.update(BASE_ENV)
+    env["RSPAMD_LOCALD_DIR"] = str(localdir)
+    env["RSPAMD_DKIM_DIR"] = str(dkimdir)
+    env["RSPAMD_SKIP_DB"] = "1"  # skip the live SELECT
+    env["RSPAMD_DKIM_ROWS"] = "example.test test\nfoo.test default"
+    env["RENDER_ROOT"] = str(tmp_path / "render_root")
+    subprocess.run(["bash", str(RENDER)], env=env, check=True,
+                   cwd=str(REPO), capture_output=True)
+    sel = (dkimdir / "selectors.map").read_text()
+    paths = (dkimdir / "paths.map").read_text()
+    assert "example.test test" in sel
+    assert "foo.test default" in sel
+    assert "example.test /var/lib/rspamd/dkim/example.test.test.key" in paths
+    assert "foo.test /var/lib/rspamd/dkim/foo.test.default.key" in paths
