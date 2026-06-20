@@ -63,3 +63,22 @@ def test_actions(rendered):
     assert "greylist = 4;" in t
     assert "add_header = 6;" in t
     assert "reject = 12;" in t  # RSPAMD_REJECT_SCORE
+
+def test_redis(rendered):
+    t = read(rendered, "redis.conf")
+    assert 'servers = "redis:6379";' in t
+    assert "db = '3';" in t
+    assert 'password = "secretredis";' in t
+    # Per-module key prefixes derived from REDIS_PREFIX (Rspamd has no single
+    # global prefix), set consistently for bayes/greylist/ratelimit/dkim.
+    assert 'key_prefix = "ml_bayes";' in t
+    assert 'greylist { key_prefix = "ml_greylist"; }' in t.replace("\n", " ") \
+        or 'key_prefix = "ml_greylist";' in t
+    assert 'key_prefix = "ml_ratelimit";' in t
+    assert 'key_prefix = "ml_dkim";' in t
+
+def test_spf(rendered):
+    t = read(rendered, "spf.conf")
+    assert "spf" in t.lower()
+    # whitelist/disabled toggles left at defaults; module simply present/enabled.
+    assert "disabled = false;" in t
