@@ -110,6 +110,34 @@ def test_main_cf_wiring():
     assert "WIRING_OK" in r.stdout, r.stdout
 
 
+def test_srs_canonical_maps_and_arc_line_length():
+    """Phase H.3: SRS socketmap and ARC-safe line length are wired in main.cf.
+
+    postsrsd 1.x uses tcp: canonical maps (not socketmap:unix:) on ports
+    10001 (forward) and 10002 (reverse).  smtp_line_length_limit=0 prevents
+    Postfix from folding long lines AFTER Rspamd's DKIM/ARC signing.
+    """
+    script = textwrap.dedent(
+        """
+        set -e
+        /usr/local/bin/render-config.sh
+        # SRS forward: envelope sender -> SRS0=...@ourdomain
+        postconf sender_canonical_maps | grep -q 'tcp:localhost:10001'
+        postconf sender_canonical_classes | grep -q 'envelope_sender'
+        # SRS reverse: SRS0=... -> original address (and header fix-up)
+        postconf recipient_canonical_maps | grep -q 'tcp:localhost:10002'
+        postconf recipient_canonical_classes | grep -q 'envelope_recipient'
+        postconf recipient_canonical_classes | grep -q 'header_recipient'
+        # ARC/DKIM integrity: no 998-byte line folding after signing
+        postconf smtp_line_length_limit | grep -q 'smtp_line_length_limit = 0'
+        echo 'SRS_WIRING_OK'
+        """
+    )
+    r = _run_in_image(script)
+    assert r.returncode == 0, f"stdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+    assert "SRS_WIRING_OK" in r.stdout, r.stdout
+
+
 # Host/ports where compose.test.yml (phase A) publishes the mail-server image.
 # Use env-var overrides first, then fall back to conftest constants.
 MAIL_HOST = os.environ.get("MAIL_TEST_HOST", MAIL_HOST)
