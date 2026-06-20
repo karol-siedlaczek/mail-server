@@ -23,7 +23,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
-SQL_DIR = os.environ.get("AUDIT_SQL_DIR", "/etc/mail-server/sql/audit")
+SQL_DIR = os.environ.get("AUDIT_SQL_DIR", "/sql/audit")
 LISTEN_HOST = os.environ.get("AUDIT_LISTEN_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("AUDIT_LISTEN_PORT", "4001"))
 MAIL_HOST = os.environ.get("MAIL_HOSTNAME", "")
@@ -48,7 +48,10 @@ def parse_auth_report(report):
 
 
 # Postfix lines: <prefix> postfix/<daemon>[<pid>]: <QUEUEID>: <key=val, ...>
-_QID_RE = re.compile(r"postfix/(?P<daemon>[a-z]+)\[\d+\]:\s+(?P<qid>[0-9A-F]{6,}):\s+(?P<rest>.*)$")
+# daemon may be a plain name (qmgr, smtp, lmtp) OR a service-qualified
+# smtpd (submission/smtpd, smtps/smtpd) when a service sets syslog_name — the
+# authenticated submission line lives there, so it must match or login is lost.
+_QID_RE = re.compile(r"postfix/(?P<daemon>[a-z]+(?:/[a-z]+)?)\[\d+\]:\s+(?P<qid>[0-9A-F]{6,}):\s+(?P<rest>.*)$")
 _CLIENT_RE = re.compile(r"client=[^\[]*\[(?P<ip>[0-9a-fA-F:.]+)\]")
 _SASL_RE = re.compile(r"sasl_username=(?P<u>\S+?)(?:,|\s|$)")
 _MSGID_RE = re.compile(r"message-id=(?P<m><[^>]*>|\S+)")
