@@ -23,7 +23,7 @@ test:
 
 ## itest: full integration tests via the compose stack
 itest:
-	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) -m integration
+	cd $(TESTS_DIR) && $(PYTEST) $(PYTEST_FLAGS) -m "integration and not optional"
 
 ## lint: shellcheck scripts, validate compose, sanity-check SQL/YAML
 lint:

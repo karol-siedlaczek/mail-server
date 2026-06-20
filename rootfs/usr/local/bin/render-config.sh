@@ -220,6 +220,8 @@ gate_postscreen() {
         *)
             log "render-config: POSTSCREEN_ENABLED=false → :25 runs plain smtpd"
             sed -i \
+                -e '/^# ── :25 inbound — fronted by postscreen/d' \
+                -e '/^#.*render-config rewrites this back/d' \
                 -e '/^smtpd     pass  /d' \
                 -e '/^  -o smtpd_sasl_auth_enable=no$/d' \
                 -e '/^tlsproxy  unix  .* tlsproxy$/d' \

@@ -157,3 +157,54 @@ def test_ratelimit_per_authenticated_user_outbound():
     assert "bounce_to = true;" in rl
     # Namespaced Redis prefix (rendered: REDIS_PREFIX=mail → mail_rl).
     assert "${REDIS_PREFIX}_rl" in rl.replace("mail_rl", "${REDIS_PREFIX}_rl") or "mail_rl" in rl
+
+
+def _run_render_config(tmp_path, env_overrides):
+    """Run render-config.sh against a sandboxed etc/ and return its root dir.
+
+    Reconciliation note: Phase D's seam is RENDER_ROOT (not ETC_ROOT/TPL_ROOT).
+    render-config.sh prefixes every absolute dest path with RENDER_ROOT so a
+    full render can happen in an unprivileged tmpdir. RSPAMD_LOCALD_DIR and
+    RSPAMD_DKIM_DIR default to ${RENDER_ROOT}/etc/rspamd/local.d and dkim/
+    respectively. RSPAMD_SKIP_DB=1 prevents the live-DB DKIM-map SELECT.
+    """
+    env = dict(BASE_ENV)
+    env.update(env_overrides)
+    env["RENDER_ROOT"] = str(tmp_path)
+    env["RSPAMD_SKIP_DB"] = "1"
+    env["PATH"] = os.environ["PATH"]
+    script = REPO / "images/mail-server/rootfs/usr/local/bin/render-config.sh"
+    subprocess.run(
+        ["bash", str(script)],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return tmp_path
+
+
+def test_render_config_postscreen_off_collapses_to_smtpd(tmp_path):
+    etc = _run_render_config(tmp_path, {"POSTSCREEN_ENABLED": "false"})
+    mc = (etc / "etc" / "postfix" / "master.cf").read_text()
+    assert "postscreen" not in mc
+    assert "smtp      inet  n       -       y       -       -       smtpd" in mc
+
+
+def test_render_config_postscreen_on_keeps_postscreen(tmp_path):
+    etc = _run_render_config(tmp_path, {"POSTSCREEN_ENABLED": "true"})
+    mc = (etc / "etc" / "postfix" / "master.cf").read_text()
+    assert "postscreen" in mc
+    assert "dnsblog   unix" in mc
+
+
+def test_render_config_greylisting_off_writes_stub(tmp_path):
+    etc = _run_render_config(tmp_path, {"GREYLISTING_ENABLED": "false"})
+    gl = (etc / "etc" / "rspamd" / "local.d" / "greylist.conf").read_text()
+    assert gl.strip() == "enabled = false;"
+
+
+def test_render_config_greylisting_on_full_config(tmp_path):
+    etc = _run_render_config(tmp_path, {"GREYLISTING_ENABLED": "true"})
+    gl = (etc / "etc" / "rspamd" / "local.d" / "greylist.conf").read_text()
+    assert "check_authed = false;" in gl
