@@ -69,6 +69,9 @@ def test_redis(rendered):
     assert 'servers = "redis:6379";' in t
     assert "db = '3';" in t
     assert 'password = "secretredis";' in t
+    # BASE_ENV sets no REDIS_USERNAME → legacy password-only AUTH; no username
+    # directive emitted (an empty username would make Rspamd send AUTH "" <pass>).
+    assert "username =" not in t
     # Per-module key prefixes derived from REDIS_PREFIX (Rspamd has no single
     # global prefix), set consistently for bayes/greylist/ratelimit/dkim.
     assert 'key_prefix = "ml_bayes";' in t
@@ -76,6 +79,24 @@ def test_redis(rendered):
         or 'key_prefix = "ml_greylist";' in t
     assert 'key_prefix = "ml_ratelimit";' in t
     assert 'key_prefix = "ml_dkim";' in t
+
+def test_redis_acl_username(tmp_path):
+    """REDIS_USERNAME set → Redis 6+ ACL login: username AND password emitted."""
+    localdir = tmp_path / "rspamd" / "local.d"
+    dkimdir = tmp_path / "rspamd" / "dkim"
+    localdir.mkdir(parents=True); dkimdir.mkdir(parents=True)
+    env = dict(os.environ); env.update(BASE_ENV)
+    env["REDIS_USERNAME"] = "rspamd"
+    env["RSPAMD_LOCALD_DIR"] = str(localdir)
+    env["RSPAMD_DKIM_DIR"] = str(dkimdir)
+    env["RSPAMD_SKIP_DB"] = "1"
+    env["RENDER_ROOT"] = str(tmp_path / "render_root")
+    subprocess.run(["bash", str(RENDER)], env=env, check=True,
+                   cwd=str(REPO), capture_output=True)
+    t = (localdir / "redis.conf").read_text()
+    assert 'username = "rspamd";' in t
+    assert 'password = "secretredis";' in t
+
 
 def test_spf(rendered):
     t = read(rendered, "spf.conf")

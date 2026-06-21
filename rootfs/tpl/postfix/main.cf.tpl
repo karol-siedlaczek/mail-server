@@ -79,11 +79,11 @@ relayhost = ${RELAYHOST}
 # ── TLS hardening (Phase K) ─────────────────────────────────────────────────
 # Floor every TLS handshake at TLSv1.2; refuse SSLv2/3 + TLS1.0/1.1. Prefer
 # the server's strong cipher ordering and drop anonymous/MD5 suites outright.
-# Cert + key as a chain file list (key first). Fed from TLS_KEY_FILE/TLS_CERT_FILE;
-# render-config generates a self-signed pair if the mounted files are absent.
-smtpd_tls_chain_files =
-    ${TLS_KEY_FILE}
-    ${TLS_CERT_FILE}
+# Cert + key chain. render-config derives this: by default the split layout
+# (TLS_KEY_FILE first, then TLS_CERT_FILE — key must precede its cert); or, when
+# TLS_CHAIN_FILE is set, that single combined PEM. A self-signed pair is minted
+# if the mounted file(s) are absent.
+smtpd_tls_chain_files = ${POSTFIX_TLS_CHAIN_FILES}
 smtpd_tls_security_level = may
 smtpd_tls_protocols = >=TLSv1.2
 smtpd_tls_mandatory_protocols = >=TLSv1.2

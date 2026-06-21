@@ -54,12 +54,14 @@ over `/tpl/*.tpl`). Every `VAR` may instead be supplied as `VAR__FILE=/path`
 | `REDIS_PORT` | no | `6379` | Redis port. |
 | `REDIS_DB` | no | `0` | Redis DB index. |
 | `REDIS_PREFIX` | no | `mail` | Key-prefix so a shared Redis is namespaced. |
+| `REDIS_USERNAME` | no | — | Redis 6+ ACL username. When set, login is `AUTH <user> <pass>`; unset = legacy password-only AUTH. |
 | `REDIS_PASSWORD` / `REDIS_PASSWORD__FILE` | no | — | Redis AUTH password (or file). |
 | `CLAMAV_ENABLED` | no | `true` | Enable the Rspamd antivirus module. |
 | `CLAMAV_HOST` | no | — | ClamAV (`clamd`) host; AV disabled if unset. |
 | `CLAMAV_PORT` | no | `3310` | ClamAV port. |
-| `TLS_CERT_FILE` | no | `/tls/fullchain.pem` | Mounted cert chain (self-signed if absent). |
-| `TLS_KEY_FILE` | no | `/tls/privkey.pem` | Mounted private key. |
+| `TLS_CERT_FILE` | no | `/tls/fullchain.pem` | Mounted cert chain (self-signed if absent). Ignored when `TLS_CHAIN_FILE` is set. |
+| `TLS_KEY_FILE` | no | `/tls/privkey.pem` | Mounted private key. Ignored when `TLS_CHAIN_FILE` is set. |
+| `TLS_CHAIN_FILE` | no | — | Single combined PEM (key + leaf + chain, **key first**) used for both Postfix and Dovecot. When set, overrides `TLS_CERT_FILE`/`TLS_KEY_FILE`. |
 | `RELAYHOST` | no | — | Optional smarthost; direct outbound if unset. |
 | `RELAYHOST_USER` | no | — | Smarthost SASL user. |
 | `RELAYHOST_PASSWORD` / `RELAYHOST_PASSWORD__FILE` | no | — | Smarthost SASL password (or file). |

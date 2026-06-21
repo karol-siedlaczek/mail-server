@@ -1,10 +1,13 @@
 # Shared Redis for all Rspamd stateful modules (Bayes, fuzzy, greylist,
 # ratelimit, replies, dkim signing key cache).  Rspamd has no single global
 # key prefix, so each module gets a consistent ${REDIS_PREFIX}_<module> prefix
-# to namespace a shared instance, plus a shared servers/db/password here.
+# to namespace a shared instance, plus a shared servers/db/credentials here.
+# When REDIS_USERNAME is set, render-config emits a `username` line above so
+# Rspamd authenticates via Redis 6+ ACL (AUTH <user> <pass>); otherwise only the
+# password line is present (legacy AUTH).
 servers = "${REDIS_HOST}:${REDIS_PORT}";
 db = '${REDIS_DB}';
-password = "${REDIS_PASSWORD}";
+${REDIS_USERNAME_LINE}password = "${REDIS_PASSWORD}";
 timeout = 1.0;
 
 # Bayes statistics prefix (statistics module reads this).

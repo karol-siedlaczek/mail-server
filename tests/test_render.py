@@ -173,6 +173,31 @@ def test_smoke_template_rendered(tmp_path):
     assert "${" not in out
 
 
+def test_tls_split_layout_default(tmp_path):
+    # No TLS_CHAIN_FILE → historical split: Postfix lists key first then cert,
+    # Dovecot points cert/key at the two separate files.
+    root = full_render(tmp_path)
+    maincf = (root / "etc/postfix/main.cf").read_text()
+    assert "smtpd_tls_chain_files = /tls/privkey.pem /tls/fullchain.pem" in maincf
+    ssl = (root / "etc/dovecot/conf.d/10-ssl.conf").read_text()
+    assert "ssl_server_cert_file = /tls/fullchain.pem" in ssl
+    assert "ssl_server_key_file = /tls/privkey.pem" in ssl
+
+
+def test_tls_chain_file_single_pem(tmp_path):
+    # TLS_CHAIN_FILE set → one combined PEM drives both daemons.
+    root = full_render(tmp_path, extra={"TLS_CHAIN_FILE": "/tls/combined.pem"})
+    maincf = (root / "etc/postfix/main.cf").read_text()
+    assert "smtpd_tls_chain_files = /tls/combined.pem" in maincf
+    ssl = (root / "etc/dovecot/conf.d/10-ssl.conf").read_text()
+    assert "ssl_server_cert_file = /tls/combined.pem" in ssl
+    assert "ssl_server_key_file = /tls/combined.pem" in ssl
+    # render-config minted a self-signed combined file, key-first.
+    chain = (root / "tls/combined.pem").read_text()
+    assert "BEGIN PRIVATE KEY" in chain or "BEGIN RSA PRIVATE KEY" in chain
+    assert chain.index("PRIVATE KEY") < chain.index("BEGIN CERTIFICATE")
+
+
 def test_render_creates_dest_dirs(tmp_path):
     root = full_render(tmp_path)
     assert (root / "run/mail-render-smoke.conf").is_file()

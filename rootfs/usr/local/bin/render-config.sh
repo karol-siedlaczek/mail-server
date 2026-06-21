@@ -110,6 +110,40 @@ else
 fi
 export DOVECOT_POP3_PROTOCOLS DOVECOT_POP3_SERVICES
 
+# ── 2c-redis. Redis authentication (Redis 6+ ACL) ────────────────────────────
+# When REDIS_USERNAME is set, authenticate with `AUTH <user> <pass>` (Redis ACL);
+# otherwise fall back to legacy password-only AUTH. The Rspamd redis module reads
+# a static template, so we derive REDIS_USERNAME_LINE here: the full
+# `username = "...";` directive when a username is set, or an empty string when
+# it is not — an emitted `username = "";` would make Rspamd send AUTH "" <pass>
+# and fail against an ACL-enabled Redis.
+if [ -n "${REDIS_USERNAME:-}" ]; then
+    REDIS_USERNAME_LINE="username = \"${REDIS_USERNAME}\";"$'\n'
+else
+    REDIS_USERNAME_LINE=""
+fi
+export REDIS_USERNAME REDIS_USERNAME_LINE
+
+# ── 2c-tls. TLS file layout (single combined chain vs separate cert/key) ─────
+# TLS_CHAIN_FILE (optional) is a single PEM holding the private key, the leaf
+# cert and the issuer chain. When set it becomes the one source for both daemons:
+#   - Postfix: smtpd_tls_chain_files points at it once (its native format).
+#   - Dovecot: cert and key are both read from it.
+# When unset, the historical split layout applies — TLS_CERT_FILE (fullchain) +
+# TLS_KEY_FILE (key) — and Postfix lists the key first so the two halves form one
+# ordered chain. POSTFIX_TLS_CHAIN_FILES is kept single-line (Postfix accepts a
+# whitespace-separated list) so the RENDER_DUMP_ENV output stays one line/var.
+if [ -n "${TLS_CHAIN_FILE:-}" ]; then
+    POSTFIX_TLS_CHAIN_FILES="${TLS_CHAIN_FILE}"
+    DOVECOT_SSL_CERT_FILE="${TLS_CHAIN_FILE}"
+    DOVECOT_SSL_KEY_FILE="${TLS_CHAIN_FILE}"
+else
+    POSTFIX_TLS_CHAIN_FILES="${TLS_KEY_FILE} ${TLS_CERT_FILE}"
+    DOVECOT_SSL_CERT_FILE="${TLS_CERT_FILE}"
+    DOVECOT_SSL_KEY_FILE="${TLS_KEY_FILE}"
+fi
+export TLS_CHAIN_FILE POSTFIX_TLS_CHAIN_FILES DOVECOT_SSL_CERT_FILE DOVECOT_SSL_KEY_FILE
+
 # ── 2d. Derived variables for audit-svc (Dovecot auth-policy) ───────────────
 # AUDIT_POLICY_NONCE: random per-deploy nonce for auth_policy_hash_nonce.
 # Preserved across render-config re-runs when passed in from outside; generated
@@ -144,8 +178,11 @@ done
 # Every variable referenced by a template plus everything validated above.
 DUMP_VARS="MAIL_HOSTNAME SRS_DOMAIN PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWORD \
   PG_AUDIT_USER PG_AUDIT_PASSWORD REDIS_HOST REDIS_PORT REDIS_DB REDIS_PREFIX \
+  REDIS_USERNAME REDIS_USERNAME_LINE \
   REDIS_PASSWORD CLAMAV_ENABLED CLAMAV_HOST CLAMAV_PORT TLS_CERT_FILE \
-  TLS_KEY_FILE RELAYHOST RELAYHOST_USER RELAYHOST_PASSWORD PASSWORD_SCHEME \
+  TLS_KEY_FILE TLS_CHAIN_FILE POSTFIX_TLS_CHAIN_FILES \
+  DOVECOT_SSL_CERT_FILE DOVECOT_SSL_KEY_FILE \
+  RELAYHOST RELAYHOST_USER RELAYHOST_PASSWORD PASSWORD_SCHEME \
   ALLOW_WEAK_SCHEMES MESSAGE_SIZE_LIMIT RSPAMD_REJECT_SCORE \
   DMARC_REPORT_ENABLED DMARC_REPORT_EMAIL AUDIT_ENABLED AUDIT_SCOPE \
   POP3_ENABLED POSTSCREEN_ENABLED GREYLISTING_ENABLED MAIL_BOOTSTRAP_DOMAIN \
@@ -253,6 +290,36 @@ fix_ownership() {
 # Only when the configured cert/key are absent, so a real mounted LE cert is
 # never clobbered. Lets the container boot for tests without a CA.
 ensure_tls() {
+    # Single combined chain file (TLS_CHAIN_FILE) takes precedence: one PEM with
+    # key + cert. Generate a self-signed pair into it (key first, so Postfix's
+    # smtpd_tls_chain_files accepts it directly) only when the file is absent.
+    if [ -n "${TLS_CHAIN_FILE:-}" ]; then
+        local chain="${RENDER_ROOT}${TLS_CHAIN_FILE}"
+        if [ -s "$chain" ]; then
+            log "TLS chain file present, leaving untouched"
+            return 0
+        fi
+        log "TLS chain file absent — generating a self-signed key+cert for ${MAIL_HOSTNAME}"
+        mkdir -p "$(dirname "$chain")"
+        local chain_cert="${chain}.crt"
+        openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$chain" -out "$chain_cert" -days 365 \
+            -subj "/CN=${MAIL_HOSTNAME}" \
+            -addext "subjectAltName=DNS:${MAIL_HOSTNAME}" >/dev/null 2>&1 \
+            || die "self-signed certificate generation failed"
+        cat "$chain_cert" >> "$chain"   # key (already written) followed by cert
+        rm -f "$chain_cert"
+        # The chain file holds the private key, so it must not be world-readable;
+        # group-own it to postfix (Dovecot loads it as root) exactly like the
+        # split-layout key below. Tests (RENDER_ROOT set) run unprivileged → 0600.
+        if [ -z "${RENDER_ROOT}" ]; then
+            chgrp postfix "$chain" 2>/dev/null || true
+            chmod 640 "$chain"
+        else
+            chmod 600 "$chain"
+        fi
+        return 0
+    fi
     local cert="${RENDER_ROOT}${TLS_CERT_FILE}"
     local key="${RENDER_ROOT}${TLS_KEY_FILE}"
     if [ -s "$cert" ] && [ -s "$key" ]; then

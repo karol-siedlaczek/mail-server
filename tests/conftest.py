@@ -273,6 +273,10 @@ DOVECOT_RENDER_ENV = {
     "DOVECOT_AUTH_ALLOW_WEAK": "no",
     "DOVECOT_POP3_PROTOCOLS": "",
     "DOVECOT_POP3_SERVICES": "",
+    # SSL cert/key paths: render-config points these at the split TLS_* files by
+    # default, or at a single TLS_CHAIN_FILE when set. Default fallback here.
+    "DOVECOT_SSL_CERT_FILE": "/tls/fullchain.pem",
+    "DOVECOT_SSL_KEY_FILE": "/tls/privkey.pem",
 }
 
 

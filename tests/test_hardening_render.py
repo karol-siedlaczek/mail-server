@@ -119,11 +119,14 @@ def test_tls_mandatory_ciphers_high_and_exclusions():
 
 
 def test_tls_chain_files_from_env():
-    cf = render("postfix/main.cf.tpl")
-    # chain_files takes key then cert (key first per Postfix docs).
-    assert "smtpd_tls_chain_files =" in cf
-    assert "/tls/privkey.pem" in cf
-    assert "/tls/fullchain.pem" in cf
+    # The chain-file list is derived by render-config (split vs combined layout,
+    # see test_render.py); main.cf just embeds POSTFIX_TLS_CHAIN_FILES. Feed the
+    # default split value here and confirm the template wires it through.
+    cf = render(
+        "postfix/main.cf.tpl",
+        {"POSTFIX_TLS_CHAIN_FILES": "/tls/privkey.pem /tls/fullchain.pem"},
+    )
+    assert "smtpd_tls_chain_files = /tls/privkey.pem /tls/fullchain.pem" in cf
 
 
 def test_greylist_never_greylists_authenticated():

@@ -30,6 +30,9 @@ rspamadm control stat          >/dev/null 2>&1 || fail "rspamd controller not an
 
 if [ -n "${REDIS_HOST:-}" ]; then
     redis_args=(-h "${REDIS_HOST}" -p "${REDIS_PORT:-6379}")
+    # Redis 6+ ACL: authenticate as REDIS_USERNAME when set (AUTH <user> <pass>);
+    # without it redis-cli sends legacy password-only AUTH.
+    [ -n "${REDIS_USERNAME:-}" ] && redis_args+=(--user "${REDIS_USERNAME}")
     [ -n "${REDIS_PASSWORD:-}" ] && redis_args+=(-a "${REDIS_PASSWORD}" --no-auth-warning)
     [ -n "${REDIS_DB:-}" ] && redis_args+=(-n "${REDIS_DB}")
     pong="$(redis-cli "${redis_args[@]}" PING 2>/dev/null || true)"
