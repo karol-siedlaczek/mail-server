@@ -91,3 +91,23 @@ GRANT SELECT ON domains, users, forwardings, sender_login_maps TO mail_ro;
 -- mail_audit: INSERT on audit_logs (+ usage of its id sequence for serial PK)
 GRANT INSERT ON audit_logs TO mail_audit;
 GRANT USAGE, SELECT ON SEQUENCE audit_logs_id_seq TO mail_audit;
+
+-- mail_admin_rw: read-write management role used by the mail-admin image.
+-- NOLOGIN group role; the operator GRANTs it to the actual PG_USER login role.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail_admin_rw') THEN
+    CREATE ROLE mail_admin_rw NOLOGIN;
+  END IF;
+END
+$$;
+
+-- full CRUD on the four management tables...
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON domains, users, forwardings, sender_login_maps TO mail_admin_rw;
+-- ...read-only on the audit log...
+GRANT SELECT ON audit_logs TO mail_admin_rw;
+-- ...and USAGE on the id sequences so INSERT ... RETURNING id works.
+GRANT USAGE, SELECT ON SEQUENCE
+  domains_id_seq, users_id_seq, forwardings_id_seq, sender_login_maps_id_seq
+  TO mail_admin_rw;

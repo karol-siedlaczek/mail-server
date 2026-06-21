@@ -157,9 +157,9 @@ def test_pk_columns_are_bigint(conn):
 def test_roles_exist(conn):
     with conn.cursor() as cur:
         cur.execute("SELECT rolname FROM pg_roles WHERE rolname IN %s",
-                    (("mail_ro", "mail_audit"),))
+                    (("mail_ro", "mail_audit", "mail_admin_rw"),))
         roles = {r[0] for r in cur.fetchall()}
-    assert {"mail_ro", "mail_audit"} == roles
+    assert {"mail_ro", "mail_audit", "mail_admin_rw"} == roles
 
 
 def test_grants(conn):
@@ -181,6 +181,17 @@ def test_grants(conn):
         )
         audit = {r[0] for r in cur.fetchall()}
         assert "INSERT" in audit
+        # mail_admin_rw has full CRUD on the four management tables
+        cur.execute(
+            """SELECT table_name, privilege_type
+                 FROM information_schema.role_table_grants
+                WHERE grantee='mail_admin_rw'"""
+        )
+        rw = {(t, p) for t, p in cur.fetchall()}
+        for t in ("domains", "users", "forwardings", "sender_login_maps"):
+            for priv in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                assert (t, priv) in rw, (t, priv, rw)
+        assert ("audit_logs", "SELECT") in rw
 
 
 # ---------------------------------------------------------------------------
