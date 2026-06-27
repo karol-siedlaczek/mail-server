@@ -421,7 +421,7 @@ esac
 
 # DKIM/ARC maps: domain->selector and domain->keypath, from the active domains.
 # RSPAMD_DKIM_ROWS (newline-separated "domain selector") lets tests inject rows
-# without a live DB; otherwise query Postgres with the mail_ro role.
+# without a live DB; otherwise query Postgres with the mail-server-ro role.
 render_dkim_maps() {
   : > "$RSPAMD_DKIM_DIR/selectors.map"
   : > "$RSPAMD_DKIM_DIR/paths.map"

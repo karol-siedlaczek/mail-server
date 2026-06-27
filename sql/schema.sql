@@ -76,40 +76,40 @@ CREATE INDEX IF NOT EXISTS audit_logs_login_idx     ON audit_logs (login);
 -- CREATE ROLE has no IF NOT EXISTS, so guard each in a DO block for idempotency.
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail_ro') THEN
-    CREATE ROLE mail_ro NOLOGIN;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail-server-ro') THEN
+    CREATE ROLE "mail-server-ro" NOLOGIN;
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail_audit') THEN
-    CREATE ROLE mail_audit NOLOGIN;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail-server-audit') THEN
+    CREATE ROLE "mail-server-audit" NOLOGIN;
   END IF;
 END
 $$;
 
--- mail_ro: SELECT on the lookup tables (Postfix pgsql maps + Dovecot passdb/userdb)
-GRANT SELECT ON domains, users, forwardings, sender_login_maps TO mail_ro;
+-- mail-server-ro: SELECT on the lookup tables (Postfix pgsql maps + Dovecot passdb/userdb)
+GRANT SELECT ON domains, users, forwardings, sender_login_maps TO "mail-server-ro";
 
--- mail_audit: INSERT on audit_logs (+ usage of its id sequence for serial PK)
-GRANT INSERT ON audit_logs TO mail_audit;
-GRANT USAGE, SELECT ON SEQUENCE audit_logs_id_seq TO mail_audit;
+-- mail-server-audit: INSERT on audit_logs (+ usage of its id sequence for serial PK)
+GRANT INSERT ON audit_logs TO "mail-server-audit";
+GRANT USAGE, SELECT ON SEQUENCE audit_logs_id_seq TO "mail-server-audit";
 
--- mail_admin_rw: read-write management role used by the mail-admin image
--- (separate repo: github.com/karol-siedlaczek/mail-admin). This schema is the
--- single source of truth for the role; mail-admin only consumes it.
+-- mail-server-admin: read-write management role used by the mail-controller image
+-- (separate repo: github.com/karol-siedlaczek/mail-controller). This schema is the
+-- single source of truth for the role; mail-controller only consumes it.
 -- NOLOGIN group role; the operator GRANTs it to the actual PG_USER login role.
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail_admin_rw') THEN
-    CREATE ROLE mail_admin_rw NOLOGIN;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail-server-admin') THEN
+    CREATE ROLE "mail-server-admin" NOLOGIN;
   END IF;
 END
 $$;
 
 -- full CRUD on the four management tables...
 GRANT SELECT, INSERT, UPDATE, DELETE
-  ON domains, users, forwardings, sender_login_maps TO mail_admin_rw;
+  ON domains, users, forwardings, sender_login_maps TO "mail-server-admin";
 -- ...read-only on the audit log...
-GRANT SELECT ON audit_logs TO mail_admin_rw;
+GRANT SELECT ON audit_logs TO "mail-server-admin";
 -- ...and USAGE on the id sequences so INSERT ... RETURNING id works.
 GRANT USAGE, SELECT ON SEQUENCE
   domains_id_seq, users_id_seq, forwardings_id_seq, sender_login_maps_id_seq
-  TO mail_admin_rw;
+  TO "mail-server-admin";

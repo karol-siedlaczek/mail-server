@@ -31,7 +31,7 @@ REQUIRED_ENV = {
     "PG_HOST": "db",
     "PG_PORT": "5432",
     "PG_DBNAME": "maildb",
-    "PG_USER": "mail_ro",
+    "PG_USER": "mail-server-ro_user",
     "PG_PASSWORD": "secret",
 }
 

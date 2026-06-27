@@ -157,35 +157,35 @@ def test_pk_columns_are_bigint(conn):
 def test_roles_exist(conn):
     with conn.cursor() as cur:
         cur.execute("SELECT rolname FROM pg_roles WHERE rolname IN %s",
-                    (("mail_ro", "mail_audit", "mail_admin_rw"),))
+                    (("mail-server-ro", "mail-server-audit", "mail-server-admin"),))
         roles = {r[0] for r in cur.fetchall()}
-    assert {"mail_ro", "mail_audit", "mail_admin_rw"} == roles
+    assert {"mail-server-ro", "mail-server-audit", "mail-server-admin"} == roles
 
 
 def test_grants(conn):
     with conn.cursor() as cur:
-        # mail_ro can SELECT the four lookup tables
+        # mail-server-ro can SELECT the four lookup tables
         cur.execute(
             """SELECT table_name, privilege_type
                  FROM information_schema.role_table_grants
-                WHERE grantee='mail_ro'"""
+                WHERE grantee='mail-server-ro'"""
         )
         ro = {(t, p) for t, p in cur.fetchall()}
         for t in ("domains", "users", "forwardings", "sender_login_maps"):
             assert (t, "SELECT") in ro, (t, ro)
-        # mail_audit can INSERT audit_logs
+        # mail-server-audit can INSERT audit_logs
         cur.execute(
             """SELECT privilege_type
                  FROM information_schema.role_table_grants
-                WHERE grantee='mail_audit' AND table_name='audit_logs'"""
+                WHERE grantee='mail-server-audit' AND table_name='audit_logs'"""
         )
         audit = {r[0] for r in cur.fetchall()}
         assert "INSERT" in audit
-        # mail_admin_rw has full CRUD on the four management tables
+        # mail-server-admin has full CRUD on the four management tables
         cur.execute(
             """SELECT table_name, privilege_type
                  FROM information_schema.role_table_grants
-                WHERE grantee='mail_admin_rw'"""
+                WHERE grantee='mail-server-admin'"""
         )
         rw = {(t, p) for t, p in cur.fetchall()}
         for t in ("domains", "users", "forwardings", "sender_login_maps"):

@@ -1,5 +1,5 @@
 # postfix-pgsql map: sender_login_maps (send-as)
-# Rendered from env by render-config (phase A). Role: mail_ro.
+# Rendered from env by render-config (phase A). Role: mail-server-ro.
 # Returns every SASL login authorised to use a given envelope MAIL FROM.
 # MUST be one UNION: Postfix short-circuits across multiple maps (first hit wins,
 # never merged), so the implicit self-rule + explicit grants live in one query.

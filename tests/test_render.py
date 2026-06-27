@@ -11,7 +11,7 @@ def base_env():
         "MAIL_HOSTNAME": "mail.example.test",
         "PG_HOST": "postgres",
         "PG_DBNAME": "maildb",
-        "PG_USER": "mail_ro",
+        "PG_USER": "mail-server-ro_user",
         "PG_PASSWORD": "s3cret",
         "REDIS_HOST": "redis",
     }
@@ -82,7 +82,7 @@ def test_missing_file_secret_is_fatal(tmp_path):
 def test_audit_creds_default_to_pg_creds():
     env = base_env()
     dump = parse_dump(run_render(env=env).stdout)
-    assert dump["PG_AUDIT_USER"] == "mail_ro"
+    assert dump["PG_AUDIT_USER"] == "mail-server-ro_user"
     assert dump["PG_AUDIT_PASSWORD"] == "s3cret"
 
 
@@ -166,7 +166,7 @@ def test_smoke_template_rendered(tmp_path):
     root = full_render(tmp_path)
     out = (root / "run/mail-render-smoke.conf").read_text()
     assert "hostname = mail.example.test" in out
-    assert "pg = mail_ro@postgres:5432/maildb" in out
+    assert "pg = mail-server-ro_user@postgres:5432/maildb" in out
     assert "redis = redis:6379/0 prefix=mail" in out
     assert "reject_score = 15" in out
     # no unsubstituted placeholders survived

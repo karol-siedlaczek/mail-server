@@ -27,7 +27,7 @@ ENV = {
     "PG_HOST": "db",
     "PG_PORT": "5432",
     "PG_DBNAME": "mail",
-    "PG_USER": "mail_ro",
+    "PG_USER": "mail-server-ro_user",
     "PG_PASSWORD": "s3cret",
     "REDIS_HOST": "redis",
     # Skip the Postgres DKIM-map SELECT: these unit tests have no live DB.
@@ -77,7 +77,7 @@ def test_pgsql_maps_substituted_no_leftover_tokens():
         fi
         # PG connection landed in the maps.
         grep -q 'hosts = db:5432' /etc/postfix/sql/virtual_mailbox_maps.cf
-        grep -q 'user = mail_ro' /etc/postfix/sql/sender_login_maps.cf
+        grep -q 'user = mail-server-ro_user' /etc/postfix/sql/sender_login_maps.cf
         echo 'SUBST_OK'
         """
     )

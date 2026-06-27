@@ -1,5 +1,5 @@
 # postfix-pgsql map: virtual_alias_maps
-# Rendered from env by render-config (phase A). Role: mail_ro.
+# Rendered from env by render-config (phase A). Role: mail-server-ro.
 # Applied to EVERY recipient before mailbox routing. A plain forwardings row is a
 # redirect (no local copy). keep_copy=true additionally returns the source itself
 # so Postfix also delivers a local copy (terminal self-mapping, no recursion).

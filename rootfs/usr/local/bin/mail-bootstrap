@@ -2,7 +2,7 @@
 # First-boot seed for the mail-server appliance.
 #
 # Runs as an s6 oneshot AFTER render-config and BEFORE the daemons. It makes the
-# appliance usable before the `mail-admin` companion exists by seeding one domain
+# appliance usable before the `mail-controller` companion exists by seeding one domain
 # + one admin mailbox and a DKIM key, then printing the DNS records to publish.
 #
 # It is a strict no-op unless ALL of these hold:
@@ -11,7 +11,7 @@
 #   - a bootstrap password is available (MAIL_BOOTSTRAP_PASSWORD, resolved from
 #     MAIL_BOOTSTRAP_PASSWORD__FILE by render-config)
 #   - the `domains` table is EMPTY
-# so a normal restart, or a DB already managed by mail-admin, is untouched.
+# so a normal restart, or a DB already managed by mail-controller, is untouched.
 #
 # Idempotent: on rerun the domains table is non-empty -> exit 0 immediately. The
 # DKIM key is only generated if its file does not already exist.

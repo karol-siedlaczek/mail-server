@@ -4,5 +4,5 @@
 MAIL_HOSTNAME=mail.example.test
 PG_HOST=postgres
 PG_DBNAME=maildb
-PG_USER=mail_ro
+PG_USER=mail-server-ro_user
 REDIS_HOST=redis

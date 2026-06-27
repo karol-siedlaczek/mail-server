@@ -9,7 +9,7 @@ All mail data — `domains`, `users`, `forwardings`, `sender_login_maps`,
 `audit_logs` — lives in an **external PostgreSQL** database you own; the image
 reaches it only through operator-editable SQL maps under `sql/`. **Redis**
 (Rspamd state) and **ClamAV** (antivirus) are external too. CRUD management is the
-separate `mail-admin` companion image; this image ships only a non-interactive
+separate `mail-controller` companion image; this image ships only a non-interactive
 first-boot bootstrap seed.
 
 | Port | Service                                  |
@@ -46,9 +46,9 @@ over `/tpl/*.tpl`). Every `VAR` may instead be supplied as `VAR__FILE=/path`
 | `PG_HOST` | yes | — | External Postgres host. |
 | `PG_PORT` | no | `5432` | Postgres port. |
 | `PG_DBNAME` | yes | — | Postgres database. |
-| `PG_USER` | yes | — | `mail_ro` lookup role (Postfix maps + Dovecot auth). |
+| `PG_USER` | yes | — | `mail-server-ro_user` login user — granted the `mail-server-ro` role (Postfix maps + Dovecot auth). |
 | `PG_PASSWORD` / `PG_PASSWORD__FILE` | yes | — | Password for `PG_USER`. |
-| `PG_AUDIT_USER` | no | = `PG_USER` | `mail_audit` role (audit writes). |
+| `PG_AUDIT_USER` | no | = `PG_USER` | `mail-server-audit_user` login user — granted the `mail-server-audit` role (audit writes). |
 | `PG_AUDIT_PASSWORD` / `PG_AUDIT_PASSWORD__FILE` | no | — | Password for `PG_AUDIT_USER`. |
 | `REDIS_HOST` | yes | — | Redis host (Rspamd state). |
 | `REDIS_PORT` | no | `6379` | Redis port. |
@@ -112,9 +112,9 @@ services:
       MAIL_HOSTNAME: mail.example.com
       PG_HOST: postgres
       PG_DBNAME: mail
-      PG_USER: mail_ro
+      PG_USER: mail-server-ro_user
       PG_PASSWORD__FILE: /run/secrets/pg_password
-      PG_AUDIT_USER: mail_audit
+      PG_AUDIT_USER: mail-server-audit_user
       PG_AUDIT_PASSWORD__FILE: /run/secrets/pg_audit_password
       REDIS_HOST: redis
       REDIS_PREFIX: mail
@@ -147,7 +147,8 @@ services:
       POSTGRES_PASSWORD__FILE: /run/secrets/pg_superpass
     volumes:
       - pg-data:/var/lib/postgresql/data
-      # Apply sql/schema.sql once; create mail_ro / mail_audit roles.
+      # Apply sql/schema.sql once (creates the mail-server-ro / mail-server-audit
+      # roles); then create the login users and grant them in (see Database setup).
     secrets:
       - pg_superpass
 
@@ -186,31 +187,31 @@ starts — fine for testing, not for real delivery.
 
 ## Database setup
 
-Before first boot, apply the schema and create the two least-privilege roles in
-your Postgres:
+Before first boot, apply the schema (it creates the least-privilege **roles**
+`mail-server-ro` / `mail-server-audit` / `mail-server-admin`), then create the
+login **users** and grant them the matching role:
 
 ```bash
 psql "$DBURL" -f sql/schema.sql
 psql "$DBURL" <<'SQL'
-CREATE ROLE mail_ro    LOGIN PASSWORD '...';
-CREATE ROLE mail_audit LOGIN PASSWORD '...';
-GRANT SELECT ON domains, users, forwardings, sender_login_maps TO mail_ro;
-GRANT INSERT ON audit_logs TO mail_audit;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO mail_audit;
+CREATE ROLE "mail-server-ro_user"    LOGIN PASSWORD '...';
+CREATE ROLE "mail-server-audit_user" LOGIN PASSWORD '...';
+GRANT "mail-server-ro"    TO "mail-server-ro_user";
+GRANT "mail-server-audit" TO "mail-server-audit_user";
 SQL
 ```
 
 > [!NOTE]
 > The first-boot bootstrap (below) needs **INSERT on `domains` and `users`**. The
-> `mail_ro` role is SELECT-only by design. For the seed either (a) point
-> `PG_USER` at a role with temporary INSERT for the first boot, or (b) skip the
-> bootstrap env and insert the domain + admin rows yourself. If `mail_ro` lacks
+> `mail-server-ro` role is SELECT-only by design. For the seed either (a) point
+> `PG_USER` at a user with temporary INSERT for the first boot, or (b) skip the
+> bootstrap env and insert the domain + admin rows yourself. If `mail-server-ro_user` lacks
 > INSERT, `mail-bootstrap` logs the privilege error and continues the boot — it
 > never wedges the container.
 
 ## Day 1: bootstrap
 
-The appliance is usable before `mail-admin` exists. On first boot, if
+The appliance is usable before `mail-controller` exists. On first boot, if
 `MAIL_BOOTSTRAP_DOMAIN` is set **and the `domains` table is empty**, the
 `mail-bootstrap` oneshot (after `render-config`, before the daemons):
 
@@ -276,7 +277,7 @@ A starting policy is shipped at
 - **Config sanity:** `postfix check`, `doveconf -n`, `rspamadm configtest`.
 - **Logs / audit:** daemon logs on container stdout; durable audit in the
   `audit_logs` table (query by `login`, `timestamp`, `queue_id`).
-- **Add a domain/user later:** insert rows in Postgres (the future `mail-admin`,
+- **Add a domain/user later:** insert rows in Postgres (the future `mail-controller`,
   or SQL), then `mail-dkim-keygen <domain>` and publish the DKIM TXT. No restart
   needed for lookups; new DKIM keys are picked up on the next Rspamd reload.
 - **Back up three things independently:** `/var/vmail`, the DKIM/ARC keys under

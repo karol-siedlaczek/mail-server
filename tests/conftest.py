@@ -259,7 +259,7 @@ DOVECOT_RENDER_ENV = {
     "PG_HOST": "db",
     "PG_PORT": "5432",
     "PG_DBNAME": "mail",
-    "PG_USER": "mail_ro",
+    "PG_USER": "mail-server-ro_user",
     "PG_PASSWORD": "secret",
     "TLS_CERT_FILE": "/tls/fullchain.pem",
     "TLS_KEY_FILE": "/tls/privkey.pem",

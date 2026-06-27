@@ -18,7 +18,7 @@ def test_auth_sql_named_pgsql_block(render_dovecot):
     assert "pgsql maildb {" in out
     assert "host = db" in out
     assert "dbname = mail" in out
-    assert "user = mail_ro" in out
+    assert "user = mail-server-ro_user" in out
     assert "password = secret" in out
     assert "connect =" not in out  # 2.3-only syntax must be absent
 

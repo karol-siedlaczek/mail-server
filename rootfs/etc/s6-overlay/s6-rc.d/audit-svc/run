@@ -1,7 +1,7 @@
 #!/command/with-contenv sh
 # audit-svc longrun: Dovecot auth-policy endpoint (127.0.0.1:4001) + Postfix
 # maillog correlator. Reads Postfix log lines from a FIFO the postfix run
-# script writes into; writes audit_logs rows via the mail_audit role.
+# script writes into; writes audit_logs rows via the mail-server-audit role.
 set -eu
 
 # Honour the master gate. When auditing is off, idle rather than restart-loop.

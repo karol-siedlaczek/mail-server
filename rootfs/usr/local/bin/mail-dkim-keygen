@@ -7,7 +7,7 @@
 #   /var/lib/rspamd/dkim/<domain>.<selector>.key
 # which is exactly what render-config's paths.map points Rspamd at.  After
 # generating a key, INSERT/UPDATE the domain's dkim_selector in Postgres (or use
-# mail-admin) and restart Rspamd so the new selector is picked up.
+# mail-controller) and restart Rspamd so the new selector is picked up.
 set -euo pipefail
 
 # Key directory is overridable for tests; defaults to the persistent volume.

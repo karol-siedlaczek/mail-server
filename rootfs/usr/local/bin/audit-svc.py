@@ -10,7 +10,7 @@
    (inbound LMTP) rows when the queue-id is 'removed'.
 
 All INSERT SQL is loaded from operator-editable files under SQL_DIR, never
-hardcoded. Uses the mail_audit Postgres role (PG_AUDIT_USER/PG_AUDIT_PASSWORD).
+hardcoded. Uses the mail-server-audit Postgres role (PG_AUDIT_USER/PG_AUDIT_PASSWORD).
 
 Pure, unit-tested functions: parse_auth_report, parse_maillog_line, and the
 Correlator.flush_queue / ingest methods (no DB, no sockets).

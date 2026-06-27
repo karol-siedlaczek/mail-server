@@ -18,7 +18,7 @@ RENDER = IMG / "rootfs" / "usr" / "local" / "bin" / "render-config.sh"
 BASE_ENV = {
     "MAIL_HOSTNAME": "mail.example.test",
     "PG_HOST": "pg", "PG_PORT": "5432", "PG_DBNAME": "mail",
-    "PG_USER": "mail_ro", "PG_PASSWORD": "ropw",
+    "PG_USER": "mail-server-ro_user", "PG_PASSWORD": "ropw",
     "REDIS_HOST": "redis", "REDIS_PORT": "6379", "REDIS_DB": "3",
     "REDIS_PREFIX": "ml", "REDIS_PASSWORD": "secretredis",
     "RSPAMD_REJECT_SCORE": "12",
