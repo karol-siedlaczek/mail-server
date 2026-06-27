@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 # ── Render-config helpers (D.1) ──────────────────────────────────────────────
-ROOT = Path(__file__).resolve().parent.parent          # images/mail-server
+ROOT = Path(__file__).resolve().parent.parent          # repo root (image build context)
 RENDER = ROOT / "rootfs" / "usr" / "local" / "bin" / "render-config.sh"
 
 

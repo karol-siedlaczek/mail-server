@@ -204,7 +204,7 @@ RENDER_ROOT="${RENDER_ROOT:-}"
 # Resolve the dir that contains both tpl/ and sql/. In the container this is
 # '/' (script at /usr/local/bin, COPY rootfs/ / + COPY sql/ /sql/ put both
 # there); under test SELF is the image's rootfs/ checkout but sql/ lives one
-# level higher (images/mail-server/sql/). We try rootfs/ first (container
+# level higher (the repo-root sql/). We try rootfs/ first (container
 # path), then fall back one level for the test environment.
 SELF="$(cd "$(dirname "$0")/../../.." && pwd)"
 if [ ! -d "${SELF}/sql" ] && [ -d "${SELF}/../sql" ]; then

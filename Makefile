@@ -1,5 +1,5 @@
 # mail-server image — build & test entrypoints.
-# Run from anywhere: `make -C images/mail-server <target>`.
+# Run from the repo root: `make <target>`.
 IMAGE        ?= mail-server:test
 IMAGE_DIR    := $(CURDIR)
 TESTS_DIR    := $(IMAGE_DIR)/tests

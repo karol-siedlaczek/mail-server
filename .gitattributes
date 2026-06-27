@@ -1,0 +1,32 @@
+# These files are consumed by Linux tooling inside Docker images and MUST keep
+# LF line endings regardless of the committer's core.autocrlf setting.
+# A CRLF in a shell script breaks the shebang ("#!/bin/bash\r": no such file),
+# and a CRLF in render.map made rendered files get a trailing \r in their names.
+#
+# Catch-all first: every text file in this Linux-targeted repo is LF. `text=auto`
+# leaves real binaries untouched. This covers extensionless scripts (mail-bootstrap),
+# *.map, *.inc, *.sql, *.py, Makefile, etc. that the per-type rules below miss.
+* text=auto eol=lf
+*.sh           text eol=lf
+entrypoint.sh  text eol=lf
+Dockerfile     text eol=lf
+*.conf         text eol=lf
+*.ini          text eol=lf
+*.php          text eol=lf
+*.cfg          text eol=lf
+*.tmpl         text eol=lf
+*.tpl          text eol=lf
+*.gotmpl       text eol=lf
+*.yml          text eol=lf
+*.yaml         text eol=lf
+# s6-overlay service files have no extension; pin them to LF too.
+# rootfs is now at the repo root (this repo is the image), but keep the **/ glob
+# so the patterns also match if rootfs/ is ever nested.
+**/rootfs/**/run      text eol=lf
+**/rootfs/**/up       text eol=lf
+**/rootfs/**/finish   text eol=lf
+**/rootfs/**/type     text eol=lf
+rootfs/**/run         text eol=lf
+rootfs/**/up          text eol=lf
+rootfs/**/finish      text eol=lf
+rootfs/**/type        text eol=lf

@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[3]
-IMG = REPO / "images" / "mail-server"
+REPO = Path(__file__).resolve().parents[1]   # repo root == image build context
+IMG = REPO
 RENDER = IMG / "rootfs" / "usr" / "local" / "bin" / "render-config.sh"
 
 BASE_ENV = {

@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[3]
-TPL = REPO / "images/mail-server/rootfs/tpl"
+REPO = Path(__file__).resolve().parents[1]   # repo root == image build context
+TPL = REPO / "rootfs/tpl"
 
 # Minimal env every template needs; individual tests override toggles.
 BASE_ENV = {
@@ -176,7 +176,7 @@ def _run_render_config(tmp_path, env_overrides):
     env["RENDER_ROOT"] = str(tmp_path)
     env["RSPAMD_SKIP_DB"] = "1"
     env["PATH"] = os.environ["PATH"]
-    script = REPO / "images/mail-server/rootfs/usr/local/bin/render-config.sh"
+    script = REPO / "rootfs/usr/local/bin/render-config.sh"
     subprocess.run(
         ["bash", str(script)],
         env=env,

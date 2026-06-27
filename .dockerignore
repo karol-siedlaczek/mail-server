@@ -1,0 +1,23 @@
+# The Dockerfile only COPYs rootfs/ and sql/. Everything else is dev-only and
+# must stay out of the build context (faster uploads, and no scratch leaking
+# into the image via `COPY rootfs/ /`).
+.git
+.github
+.gitattributes
+.gitignore
+.dockerignore
+tests
+docs
+*.md
+Makefile
+
+# Python / pytest scratch — these can appear under rootfs/ and would otherwise
+# be COPYied into the image.
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+# build / render scratch
+build
+**/.rendered
+**/tls

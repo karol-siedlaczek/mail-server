@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[1]          # images/mail-server
+REPO = Path(__file__).resolve().parents[1]          # repo root (image build context)
 RUN  = REPO / "rootfs" / "etc" / "s6-overlay" / "s6-rc.d" / "postsrsd" / "run"
 
 # ── render-config.sh helpers (from conftest) ─────────────────────────────────

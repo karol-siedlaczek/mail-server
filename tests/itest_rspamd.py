@@ -1,6 +1,6 @@
 """Integration: Rspamd DKIM signing + spam rejection against the compose stack.
 
-Brought up by `make -C images/mail-server itest` (compose.test.yml).  The mail
+Brought up by `make itest` (compose.test.yml).  The mail
 server is reachable on the compose-published ports; this test drives SMTP with
 swaks and reads delivered mail over IMAP with imaplib.  Seed data (phase A
 tests/seed.sql): domain example.test (dkim_selector 'test'), alice@example.test

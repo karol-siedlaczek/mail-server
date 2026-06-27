@@ -1,6 +1,6 @@
 """Phase K integration assertions against the live compose stack.
 
-Run via `make -C images/mail-server itest` (which brings up
+Run via `make itest` (which brings up
 tests/compose.test.yml: the built image + postgres + redis + sink, seeded with
 sql/schema.sql + tests/seed.sql). These tests talk to the running container.
 

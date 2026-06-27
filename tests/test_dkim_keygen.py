@@ -9,8 +9,8 @@ import stat
 import subprocess
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
-HELPER = REPO / "images" / "mail-server" / "rootfs" / "usr" / "local" / "bin" / "mail-dkim-keygen"
+REPO = Path(__file__).resolve().parents[1]   # repo root == image build context
+HELPER = REPO / "rootfs" / "usr" / "local" / "bin" / "mail-dkim-keygen"
 
 
 def _stub_rspamadm(bindir: Path):
