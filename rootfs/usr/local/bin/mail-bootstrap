@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# First-boot seed for the mail-server appliance.
+#
+# Runs as an s6 oneshot AFTER render-config and BEFORE the daemons. It makes the
+# appliance usable before the `mail-admin` companion exists by seeding one domain
+# + one admin mailbox and a DKIM key, then printing the DNS records to publish.
+#
+# It is a strict no-op unless ALL of these hold:
+#   - MAIL_BOOTSTRAP_DOMAIN is set
+#   - MAIL_BOOTSTRAP_ADMIN  is set
+#   - a bootstrap password is available (MAIL_BOOTSTRAP_PASSWORD, resolved from
+#     MAIL_BOOTSTRAP_PASSWORD__FILE by render-config)
+#   - the `domains` table is EMPTY
+# so a normal restart, or a DB already managed by mail-admin, is untouched.
+#
+# Idempotent: on rerun the domains table is non-empty -> exit 0 immediately. The
+# DKIM key is only generated if its file does not already exist.
+set -euo pipefail
+
+log()  { printf 'mail-bootstrap: %s\n' "$*"; }
+warn() { printf 'mail-bootstrap: %s\n' "$*" >&2; }
+
+# render-config has already resolved any *__FILE secrets into the plain vars.
+DOMAIN="${MAIL_BOOTSTRAP_DOMAIN:-}"
+ADMIN="${MAIL_BOOTSTRAP_ADMIN:-}"
+PASSWORD="${MAIL_BOOTSTRAP_PASSWORD:-}"
+
+# Nothing requested -> nothing to do.
+if [ -z "$DOMAIN" ]; then
+    log "MAIL_BOOTSTRAP_DOMAIN not set; skipping first-boot seed."
+    exit 0
+fi
+if [ -z "$ADMIN" ]; then
+    warn "MAIL_BOOTSTRAP_DOMAIN='$DOMAIN' but MAIL_BOOTSTRAP_ADMIN is empty; skipping."
+    exit 0
+fi
+if [ -z "$PASSWORD" ]; then
+    warn "MAIL_BOOTSTRAP_DOMAIN='$DOMAIN' but no bootstrap password (set MAIL_BOOTSTRAP_PASSWORD or _FILE); skipping."
+    exit 0
+fi
+
+DOMAIN="$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]')"
+ADMIN="$(printf '%s'  "$ADMIN"  | tr '[:upper:]' '[:lower:]')"
+
+# The admin address must live in the bootstrap domain, else the userdb home and
+# the virtual_mailbox_maps lookup will not line up.
+case "$ADMIN" in
+    *@"$DOMAIN") : ;;
+    *)
+        warn "MAIL_BOOTSTRAP_ADMIN='$ADMIN' is not an address in '$DOMAIN'; skipping."
+        exit 0
+        ;;
+esac
+
+# psql connection for the lookup role. PGPASSWORD is honoured by libpq.
+export PGHOST="${PG_HOST:?PG_HOST required}"
+export PGPORT="${PG_PORT:-5432}"
+export PGDATABASE="${PG_DBNAME:?PG_DBNAME required}"
+export PGUSER="${PG_USER:?PG_USER required}"
+export PGPASSWORD="${PG_PASSWORD:-}"
+PSQL="psql --no-psqlrc --no-align --tuples-only --quiet --set=ON_ERROR_STOP=1"
+
+# Idempotency gate: only seed when the domains table is empty.
+existing="$($PSQL --command='SELECT count(*) FROM domains' 2>/dev/null || echo 'ERR')"
+if [ "$existing" = "ERR" ]; then
+    warn "cannot read the domains table (is schema.sql applied and PG_* correct?); skipping seed."
+    exit 0
+fi
+if [ "$existing" != "0" ]; then
+    log "domains table already populated ($existing row(s)); seed is a no-op."
+    exit 0
+fi
+
+DKIM_SELECTOR="default"
+log "seeding domain '$DOMAIN' and admin mailbox '$ADMIN' (domains table empty)."
+
+# Hash the bootstrap password with the configured scheme (default ARGON2ID), via
+# the same doveadm Dovecot uses to verify, so the row is immediately loginable.
+SCHEME="${PASSWORD_SCHEME:-ARGON2ID}"
+PWHASH="$(doveadm pw -s "$SCHEME" -p "$PASSWORD")"
+if [ -z "$PWHASH" ]; then
+    warn "doveadm pw produced an empty hash; aborting seed."
+    exit 1
+fi
+
+# Seed domain + admin user in one transaction. Quote the literals via psql vars
+# so an apostrophe or backslash in the hash cannot break the SQL.
+seed_sql=$(cat <<'SQL'
+BEGIN;
+INSERT INTO domains (domain, dkim_selector) VALUES (:'domain', :'selector');
+INSERT INTO users (email, domain_id, password)
+  SELECT :'admin', d.id, :'pwhash' FROM domains d WHERE d.domain = :'domain';
+COMMIT;
+SQL
+)
+if ! printf '%s\n' "$seed_sql" | $PSQL \
+        --set=domain="$DOMAIN" \
+        --set=selector="$DKIM_SELECTOR" \
+        --set=admin="$ADMIN" \
+        --set=pwhash="$PWHASH" 2>/tmp/mail-bootstrap.err; then
+    warn "failed to seed rows:"
+    sed 's/^/mail-bootstrap:   /' /tmp/mail-bootstrap.err >&2 || true
+    if grep -qiE 'permission denied|must be owner|insufficient privilege' /tmp/mail-bootstrap.err; then
+        warn "PG_USER='$PGUSER' lacks INSERT on domains/users."
+        warn "Grant it for first boot, or seed the rows manually, then restart."
+    fi
+    exit 1
+fi
+log "seeded domain id + admin mailbox."
+
+# Generate the DKIM key for the bootstrap domain (idempotent: skip if present)
+# and print its DNS TXT. mail-dkim-keygen reads the DB, so the row above must
+# already be committed.
+KEYFILE="/var/lib/rspamd/dkim/${DOMAIN}.${DKIM_SELECTOR}.key"
+if [ -f "$KEYFILE" ]; then
+    log "DKIM key already exists at $KEYFILE; not regenerating."
+else
+    log "generating DKIM key for $DOMAIN (selector $DKIM_SELECTOR)."
+    mail-dkim-keygen "$DOMAIN" "$DKIM_SELECTOR"
+fi
+
+# Print the day-1 DNS records the operator must publish.
+HOST="${MAIL_HOSTNAME:?MAIL_HOSTNAME required}"
+cat <<EOF
+
+================================ DNS records ===================================
+Publish these for the bootstrap domain '$DOMAIN' (the DKIM TXT was printed above
+by mail-dkim-keygen). See the README for the full SPF/DKIM/DMARC/MTA-STS/TLS-RPT
+guidance.
+
+  MX       $DOMAIN.            -> 10 $HOST.
+  SPF      $DOMAIN.            TXT  "v=spf1 mx -all"
+  DMARC    _dmarc.$DOMAIN.     TXT  "v=DMARC1; p=none; rua=mailto:postmaster@$DOMAIN"
+  MTA-STS  _mta-sts.$DOMAIN.   TXT  "v=STSv1; id=$(date +%Y%m%d)000000"
+           mta-sts.$DOMAIN.    -> serve tpl/mta-sts.txt.sample over HTTPS (reverse proxy)
+  TLS-RPT  _smtp._tls.$DOMAIN. TXT  "v=TLSRPTv1; rua=mailto:tlsrpt@$DOMAIN"
+================================================================================
+
+Admin mailbox '$ADMIN' is ready. Log in over IMAPS (993) / submission (587).
+EOF
+
+log "first-boot seed complete."

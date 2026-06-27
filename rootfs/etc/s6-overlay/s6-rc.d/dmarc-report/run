@@ -1,0 +1,39 @@
+#!/command/with-contenv bash
+# Daily DMARC aggregate (RUA) report sender.  Rspamd does not auto-send reports,
+# so this longrun acts as a cron: once per day it runs `rspamadm dmarc_report`
+# for the previous UTC day.  Gated by DMARC_REPORT_ENABLED — when off, it idles
+# forever (s6 keeps it "up" without churning restarts).
+set -euo pipefail
+
+case "${DMARC_REPORT_ENABLED:-false}" in
+  1|true|TRUE|True|yes|on) : ;;
+  *)
+    echo "dmarc-report: DMARC_REPORT_ENABLED is off; idling." >&2
+    exec sleep infinity
+    ;;
+esac
+
+# Run shortly after midnight UTC so all of "yesterday" is closed.
+RUN_AT_HOUR="${DMARC_REPORT_HOUR:-3}"
+
+while :; do
+  now_h="$(date -u +%-H)"
+  now_m="$(date -u +%-M)"
+  # Seconds until today's RUN_AT_HOUR:00 UTC; if already past, wait for tomorrow.
+  secs_now=$(( now_h * 3600 + now_m * 60 ))
+  secs_target=$(( RUN_AT_HOUR * 3600 ))
+  if [ "$secs_now" -ge "$secs_target" ]; then
+    sleep_for=$(( 86400 - secs_now + secs_target ))
+  else
+    sleep_for=$(( secs_target - secs_now ))
+  fi
+  echo "dmarc-report: sleeping ${sleep_for}s until next run (${RUN_AT_HOUR}:00 UTC)" >&2
+  sleep "$sleep_for"
+
+  echo "dmarc-report: running rspamadm dmarc_report for the previous day" >&2
+  # `rspamadm dmarc_report` with no date reports yesterday by default and sends
+  # via the reporting{} config in local.d/dmarc.conf.
+  if ! rspamadm dmarc_report; then
+    echo "dmarc-report: rspamadm dmarc_report failed (will retry next cycle)" >&2
+  fi
+done

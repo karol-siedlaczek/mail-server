@@ -1,0 +1,49 @@
+# render.map — templating contract for render-config.sh.
+#
+# One entry per line:  <source>  <dest>
+#   <source>  path to the .tpl, RELATIVE to the image rootfs (this file's
+#             grandparent), e.g. tpl/postfix/main.cf.tpl
+#   <dest>    ABSOLUTE path the rendered file is written to inside the
+#             container, e.g. /etc/postfix/main.cf
+# Blank lines and lines starting with '#' are ignored. Columns are
+# whitespace-separated; neither path may contain spaces.
+#
+# Each value passes through envsubst, so only ${VAR} references resolved by
+# render-config are substituted; literal '$' that must survive (rare in mail
+# configs) should be written as $$ — none currently need it.
+#
+# Phases append their own templates below; keep grouped by daemon.
+#
+# ── smoke (proves the loop; safe to delete once real templates exist) ────────
+tpl/_smoke/smoke.conf.tpl   /run/mail-render-smoke.conf
+#
+# ── postfix (phase E) ────────────────────────────────────────────────────────
+tpl/postfix/main.cf.tpl                         /etc/postfix/main.cf
+tpl/postfix/master.cf.tpl                       /etc/postfix/master.cf
+sql/postfix/virtual_mailbox_domains.cf.tpl      /etc/postfix/sql/virtual_mailbox_domains.cf
+sql/postfix/virtual_mailbox_maps.cf.tpl         /etc/postfix/sql/virtual_mailbox_maps.cf
+sql/postfix/virtual_alias_maps.cf.tpl           /etc/postfix/sql/virtual_alias_maps.cf
+sql/postfix/sender_login_maps.cf.tpl            /etc/postfix/sql/sender_login_maps.cf
+#
+# ── dovecot (phase F) ────────────────────────────────────────────────────────
+tpl/dovecot/10-mail.conf.tpl                    /etc/dovecot/conf.d/10-mail.conf
+tpl/dovecot/10-auth.conf.tpl                    /etc/dovecot/conf.d/10-auth.conf
+tpl/dovecot/10-ssl.conf.tpl                     /etc/dovecot/conf.d/10-ssl.conf
+tpl/dovecot/auth-sql.conf.tpl                   /etc/dovecot/auth-sql.conf
+tpl/dovecot/15-lmtp.conf.tpl                    /etc/dovecot/conf.d/20-lmtp.conf
+tpl/dovecot/20-managesieve.conf.tpl             /etc/dovecot/conf.d/20-managesieve.conf
+tpl/dovecot/90-quota.conf.tpl                   /etc/dovecot/conf.d/90-quota.conf
+#
+# ── rspamd (phase G) ─────────────────────────────────────────────────────────
+# tpl/rspamd/local.d/worker-proxy.inc.tpl         /etc/rspamd/local.d/worker-proxy.inc
+# tpl/rspamd/local.d/dkim_signing.conf.tpl        /etc/rspamd/local.d/dkim_signing.conf
+# tpl/rspamd/local.d/dmarc.conf.tpl               /etc/rspamd/local.d/dmarc.conf
+# tpl/rspamd/local.d/arc.conf.tpl                 /etc/rspamd/local.d/arc.conf
+# tpl/rspamd/local.d/actions.conf.tpl             /etc/rspamd/local.d/actions.conf
+# tpl/rspamd/local.d/redis.conf.tpl               /etc/rspamd/local.d/redis.conf
+# tpl/rspamd/local.d/greylist.conf.tpl            /etc/rspamd/local.d/greylist.conf
+# tpl/rspamd/local.d/ratelimit.conf.tpl           /etc/rspamd/local.d/ratelimit.conf
+# tpl/rspamd/local.d/antivirus.conf.tpl           /etc/rspamd/local.d/antivirus.conf
+#
+# ── postsrsd (phase E) ───────────────────────────────────────────────────────
+# tpl/postsrsd.conf.tpl                           /etc/postsrsd.conf

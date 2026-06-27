@@ -1,0 +1,5 @@
+#!/command/execlineb -P
+with-contenv
+fdmove -c 2 1
+foreground { doveconf -n }
+dovecot -F

@@ -1,0 +1,9 @@
+#!/command/execlineb -P
+# postsrsd 1.x (Debian 13 ships 1.x, not 2.x; 2.x -C flag does not exist here).
+# Flags: -s secret-file  -d srs-domain  -f forward-port  -r reverse-port
+#        -l listen-addr  -4 IPv4-only
+# Do NOT replace with "postsrsd -C /etc/postsrsd.conf" (that is the 2.x API).
+with-contenv
+fdmove -c 2 1
+importas -D "" MAIL_HOSTNAME MAIL_HOSTNAME
+postsrsd -s /etc/postsrsd.secret -d ${MAIL_HOSTNAME} -f 10001 -r 10002 -l 127.0.0.1 -4

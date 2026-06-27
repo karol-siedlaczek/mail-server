@@ -1,0 +1,109 @@
+# Integration test stack for the mail-server image.
+# `make itest` builds mail-server:test, then runs `docker compose ... up` here
+# and drives it from tests/conftest.py (pytest).
+#
+# Postgres init order is alphabetical within /docker-entrypoint-initdb.d:
+#   00-schema.sql  -> ../sql/schema.sql   (created in phase B)
+#   10-seed.sql    -> ./seed.sql          (this harness)
+#
+# ClamAV is opt-in: `COMPOSE_PROFILES=av docker compose ... up` (the antivirus
+# phase enables it).
+name: mail-server-itest
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: maildb
+      POSTGRES_USER: maildba
+      POSTGRES_PASSWORD: testpw
+    volumes:
+      - ../sql/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+      - ./seed.sql:/docker-entrypoint-initdb.d/10-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maildba -d maildb"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  sink:
+    build: ./sink
+    image: mail-sink:test
+    volumes:
+      - sink-mail:/var/sink
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; socket.create_connection(('127.0.0.1',1025),2).close()\""]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  clamav:
+    image: clamav/clamav:latest
+    profiles: ["av"]
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --version || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+  mail-server:
+    image: mail-server:test
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sink:
+        condition: service_started
+    environment:
+      MAIL_HOSTNAME: mail.example.test
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      PG_DBNAME: maildb
+      PG_USER: maildba
+      PG_PASSWORD: testpw
+      PG_AUDIT_USER: maildba
+      PG_AUDIT_PASSWORD: testpw
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      REDIS_PREFIX: mailtest
+      CLAMAV_ENABLED: "false"
+      RELAYHOST: "sink:1025"
+      AUDIT_ENABLED: "true"
+      AUDIT_SCOPE: full
+      POSTSCREEN_ENABLED: "false"
+      GREYLISTING_ENABLED: "false"
+      MESSAGE_SIZE_LIMIT: "52428800"
+      RSPAMD_REJECT_SCORE: "15"
+    ports:
+      - "12525:25"
+      - "12587:587"
+      - "12465:465"
+      - "12143:143"
+      - "12993:993"
+      - "14190:4190"
+    volumes:
+      - vmail:/var/vmail
+      - rspamd:/var/lib/rspamd
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 120s
+
+volumes:
+  sink-mail:
+  vmail:
+  rspamd:
