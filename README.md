@@ -209,26 +209,6 @@ SQL
 > INSERT, `mail-bootstrap` logs the privilege error and continues the boot — it
 > never wedges the container.
 
-## Day 1: bootstrap
-
-The appliance is usable before `mail-controller` exists. On first boot, if
-`MAIL_BOOTSTRAP_DOMAIN` is set **and the `domains` table is empty**, the
-`mail-bootstrap` oneshot (after `render-config`, before the daemons):
-
-1. inserts the domain (`dkim_selector` = `default`) and the admin mailbox, with
-   the password hashed in-image via `doveadm pw -s ${PASSWORD_SCHEME}`,
-2. generates the DKIM key at `/var/lib/rspamd/dkim/<domain>.default.key`,
-3. prints the DKIM TXT and the other DNS records to publish.
-
-It is **idempotent**: on any later boot the `domains` table is non-empty, so the
-seed is a strict no-op (and the DKIM key is reused, never regenerated). After the
-first successful boot, remove the `MAIL_BOOTSTRAP_*` env so the container logs
-stay clean. Read the printed DNS block from the container logs:
-
-```bash
-docker compose logs mail | grep -A20 'DNS records'
-```
-
 ## Required DNS records
 
 For every domain you host (substitute `example.com`, your MX host, the DKIM TXT
@@ -245,11 +225,8 @@ printed by `mail-dkim-keygen`):
 | MTA-STS policy | `mta-sts.example.com` | HTTPS host serving `/.well-known/mta-sts.txt` (reverse proxy) |
 | TLS-RPT (TXT) | `_smtp._tls.example.com` | `v=TLSRPTv1; rua=mailto:tlsrpt@example.com` |
 
-Generate or print a domain's DKIM record any time:
-
-```bash
-docker compose exec mail mail-dkim-keygen example.com default
-```
+The DKIM TXT value comes from the domain's signing key — see
+[DKIM keys](#dkim-keys) to generate, locate, or rotate it.
 
 **DMARC rollout:** start `p=none`, observe aggregate reports 2–4 weeks, then
 `p=quarantine`, then `p=reject`.
@@ -278,18 +255,65 @@ A starting policy is shipped at
 - **Logs / audit:** daemon logs on container stdout; durable audit in the
   `audit_logs` table (query by `login`, `timestamp`, `queue_id`).
 - **Add a domain/user later:** insert rows in Postgres (the future `mail-controller`,
-  or SQL), then `mail-dkim-keygen <domain>` and publish the DKIM TXT. No restart
-  needed for lookups; new DKIM keys are picked up on the next Rspamd reload.
+  or SQL); lookups need no restart. Generate and publish its DKIM key per
+  [DKIM keys](#dkim-keys).
 - **Back up three things independently:** `/var/vmail`, the DKIM/ARC keys under
   `/var/lib/rspamd/dkim`, and the Postgres DB (`pg_dump`). Test restores.
 
-## Migration from a legacy MySQL mail server
+### DKIM keys
 
-See [`docs/migration-mysql-to-postgres.md`](docs/migration-mysql-to-postgres.md)
-for a `pgloader` recipe + post-load SQL that prefixes imported `md5crypt` hashes
-with `{MD5-CRYPT}` and converts a flat `virtual` aliases file into `forwardings`
-rows. Set `ALLOW_WEAK_SCHEMES=true` only while those legacy hashes are still in
-use, then turn it off as users re-set passwords.
+Private signing keys live in the persistent Rspamd volume, one PEM per
+domain/selector:
+
+```
+/var/lib/rspamd/dkim/<domain>.<selector>.key      # selector defaults to 'default'
+```
+
+List what exists:
+
+```bash
+docker compose exec mail ls -l /var/lib/rspamd/dkim/
+```
+
+If you booted **without** `MAIL_BOOTSTRAP_DOMAIN` (so the Day 1 seed was skipped),
+this directory is empty and no signing key was generated — create one by hand:
+
+```bash
+docker compose exec mail mail-dkim-keygen example.com default
+```
+
+This writes `example.com.default.key` and prints the DNS TXT to publish at
+`default._domainkey.example.com`. Then point the domain at the selector and
+reload Rspamd so it signs with the new key:
+
+1. set `domains.dkim_selector = 'default'` for the domain in Postgres (or via
+   `mail-controller`),
+2. `docker compose exec mail s6-svc -r /run/service/rspamd` (or restart the
+   container).
+
+`mail-dkim-keygen` refuses to overwrite a live key; to **rotate**, delete the
+`.key` file deliberately, re-run it, and publish the new TXT. Losing these keys
+silently breaks DKIM signing — back the directory up independently.
+
+## Day 1: Bootstrap
+
+The appliance is usable before `mail-controller` exists. On first boot, if
+`MAIL_BOOTSTRAP_DOMAIN` is set **and the `domains` table is empty**, the
+`mail-bootstrap` oneshot (after `render-config`, before the daemons):
+
+1. inserts the domain (`dkim_selector` = `default`) and the admin mailbox, with
+   the password hashed in-image via `doveadm pw -s ${PASSWORD_SCHEME}`,
+2. generates the DKIM key at `/var/lib/rspamd/dkim/<domain>.default.key`,
+3. prints the DKIM TXT and the other DNS records to publish.
+
+It is **idempotent**: on any later boot the `domains` table is non-empty, so the
+seed is a strict no-op (and the DKIM key is reused, never regenerated). After the
+first successful boot, remove the `MAIL_BOOTSTRAP_*` env so the container logs
+stay clean. Read the printed DNS block from the container logs:
+
+```bash
+docker compose logs mail | grep -A20 'DNS records'
+```
 
 ## Publishing
 
