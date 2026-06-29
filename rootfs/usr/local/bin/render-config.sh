@@ -360,8 +360,21 @@ ensure_tls() {
 ensure_postfix_spool() {
     [ -z "$RENDER_ROOT" ] || return 0
     mkdir -p /var/spool/postfix
-    postfix set-permissions >/dev/null 2>&1 \
-        || die "postfix set-permissions failed (could not create the queue tree)"
+    # Dovecot binds its SASL/LMTP sockets into /var/spool/postfix/private/ and
+    # must find that directory already present. The postfix master would
+    # otherwise create it only once it starts, which races dovecot (dovecot has
+    # no dependency on postfix). Create it here with postfix's canonical
+    # ownership/mode so neither daemon is surprised.
+    mkdir -p /var/spool/postfix/private
+    chown postfix:root /var/spool/postfix/private 2>/dev/null || true
+    chmod 0700 /var/spool/postfix/private
+    # `postfix check` additionally warns about ownership/permission problems and
+    # creates any other missing queue directories. Run it for hygiene, but keep
+    # it non-fatal — exactly like postfix/run, which ignores its exit code —
+    # while surfacing its output so genuine config issues are visible.
+    local out
+    out="$(postfix check 2>&1)" || true
+    [ -n "$out" ] && printf '%s\n' "$out" | sed 's/^/[render-config]   postfix: /' >&2
     log "postfix queue tree ready under /var/spool/postfix"
 }
 
