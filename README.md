@@ -153,7 +153,7 @@ services:
       - pg_superpass
 
   redis:
-    image: redis:7
+    image: redis:8
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -315,5 +315,7 @@ git push origin v0.1.0
 
 For a tag like `v0.1.0` the pipeline publishes `mail-server:0.1.0`,
 `mail-server:0.1`, `mail-server:latest`, and `mail-server:<short-sha>` to
-`registry.siedlaczek.com.pl`. To re-run a build, move and force-push the tag
-(`git tag -f v0.1.0 && git push -f origin v0.1.0`).
+`registry.siedlaczek.com.pl`. To re-run a build, move and force-push the tag:
+```bash
+git tag -f v0.1.0
+git push -f origin v0.1.0
