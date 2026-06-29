@@ -1,5 +1,8 @@
 #!/command/execlineb -P
 with-contenv
 fdmove -c 2 1
-foreground { doveconf -n }
+# NB: do NOT run `doveconf -n` here — it dumps the full effective config to the
+# container log, including the pgsql `password = …` in plaintext (doveconf 2.4
+# hides hash_nonce but not the sql parameters block). `dovecot -F` validates the
+# config on start anyway; run `doveconf -n` by hand for diagnostics if needed.
 dovecot -F

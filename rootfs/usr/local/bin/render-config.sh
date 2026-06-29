@@ -346,11 +346,31 @@ ensure_tls() {
     fi
 }
 
+# ── 7. Postfix queue tree ────────────────────────────────────────────────────
+# /var/spool/postfix is a VOLUME; on a fresh bind-mount / empty volume the queue
+# directory tree (built into the image) is shadowed and `private/` does not
+# exist. Dovecot binds its SASL/LMTP listener sockets into
+# /var/spool/postfix/private/{auth,dovecot-lmtp} and does NOT depend on the
+# postfix service, so without this it races ahead and dies with
+# `bind(...) failed: No such file or directory` (ENOENT on the missing parent).
+# `postfix set-permissions` (idempotent) creates the full tree with correct
+# ownership; running it here — a oneshot both postfix and dovecot depend on —
+# guarantees the dirs exist before either daemon starts. Skipped under
+# RENDER_ROOT (tests run unprivileged and assert on rendered content only).
+ensure_postfix_spool() {
+    [ -z "$RENDER_ROOT" ] || return 0
+    mkdir -p /var/spool/postfix
+    postfix set-permissions >/dev/null 2>&1 \
+        || die "postfix set-permissions failed (could not create the queue tree)"
+    log "postfix queue tree ready under /var/spool/postfix"
+}
+
 log "env resolved; rendering templates"
 render_templates
 gate_postscreen
 ensure_tls
 fix_ownership
+ensure_postfix_spool
 
 # ── Rspamd ──────────────────────────────────────────────────────────────────
 # Output roots (overridable for tests).
