@@ -82,10 +82,12 @@ def test_postscreen_deep_protocol_tests():
 def test_master_cf_uses_postscreen_on_25():
     mc = render("postfix/master.cf.tpl")
     # smtp/25 must be the postscreen service; smtpd runs as pass-backend on 'smtpd pass'.
-    assert "smtp      inet  n       -       y       -       1       postscreen" in mc
-    assert "smtpd     pass  -       -       y       -       -       smtpd" in mc
-    assert "tlsproxy  unix  -       -       y       -       0       tlsproxy" in mc
-    assert "dnsblog   unix  -       -       y       -       0       dnsblog" in mc
+    # chroot=n on purpose: unchrooted so smtpd starts without a populated jail
+    # under /var/spool/postfix (see master.cf.tpl).
+    assert "smtp      inet  n       -       n       -       1       postscreen" in mc
+    assert "smtpd     pass  -       -       n       -       -       smtpd" in mc
+    assert "tlsproxy  unix  -       -       n       -       0       tlsproxy" in mc
+    assert "dnsblog   unix  -       -       n       -       0       dnsblog" in mc
 
 
 def test_anvil_client_limits_in_main_cf():
@@ -191,7 +193,7 @@ def test_render_config_postscreen_off_collapses_to_smtpd(tmp_path):
     etc = _run_render_config(tmp_path, {"POSTSCREEN_ENABLED": "false"})
     mc = (etc / "etc" / "postfix" / "master.cf").read_text()
     assert "postscreen" not in mc
-    assert "smtp      inet  n       -       y       -       -       smtpd" in mc
+    assert "smtp      inet  n       -       n       -       -       smtpd" in mc
 
 
 def test_render_config_postscreen_on_keeps_postscreen(tmp_path):

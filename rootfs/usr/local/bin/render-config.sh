@@ -266,7 +266,7 @@ gate_postscreen() {
                 -e '/^  -o smtpd_sasl_auth_enable=no$/d' \
                 -e '/^tlsproxy  unix  .* tlsproxy$/d' \
                 -e '/^dnsblog   unix  .* dnsblog$/d' \
-                -e 's/^smtp      inet  n       -       y       -       1       postscreen$/smtp      inet  n       -       y       -       -       smtpd/' \
+                -e 's/^smtp      inet  n       -       n       -       1       postscreen$/smtp      inet  n       -       n       -       -       smtpd/' \
                 "$mc"
             ;;
     esac

@@ -4,11 +4,15 @@
 
 # ── :25 inbound — fronted by postscreen (Phase K). When POSTSCREEN_ENABLED=false,
 #    render-config rewrites this back to a plain smtpd service. NO SASL on :25.
-smtp      inet  n       -       y       -       1       postscreen
-smtpd     pass  -       -       y       -       -       smtpd
+# chroot=n: these run UNCHROOTED on purpose. The container is the isolation
+# boundary; chrooting to /var/spool/postfix would require a populated jail
+# (libnss, /etc/resolv.conf, /etc/services …) that nothing maintains under s6,
+# so a chrooted smtpd cannot start and the :25 front-end answers 450 4.3.2.
+smtp      inet  n       -       n       -       1       postscreen
+smtpd     pass  -       -       n       -       -       smtpd
   -o smtpd_sasl_auth_enable=no
-tlsproxy  unix  -       -       y       -       0       tlsproxy
-dnsblog   unix  -       -       y       -       0       dnsblog
+tlsproxy  unix  -       -       n       -       0       tlsproxy
+dnsblog   unix  -       -       n       -       0       dnsblog
 
 # ── :587 submission — STARTTLS, SASL, sender-login enforcement ──────────────
 submission inet  n       -       n       -       -       smtpd
