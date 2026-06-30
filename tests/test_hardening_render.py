@@ -62,21 +62,26 @@ def test_postscreen_greet_enforce_in_main_cf():
 
 def test_postscreen_weighted_dnsbl_and_threshold():
     cf = render("postfix/main.cf.tpl")
-    assert "zen.spamhaus.org*2" in cf
-    assert "b.barracudacentral.org*1" in cf
-    assert "bl.spamcop.net*1" in cf
+    # Return-code filtered so DNSBL error replies (127.255.255.x) are not scored.
+    assert "zen.spamhaus.org=127.0.0.[2..11]*2" in cf
+    assert "b.barracudacentral.org=127.0.0.2*1" in cf
+    assert "bl.spamcop.net=127.0.0.2*1" in cf
     assert "postscreen_dnsbl_threshold = 3" in cf
     assert "postscreen_dnsbl_allowlist_threshold = -1" in cf
 
 
-def test_postscreen_deep_protocol_tests():
+def test_postscreen_deep_protocol_tests_disabled():
+    # after-220 tests force a disconnect/reconnect before delivery; with large
+    # senders rotating IPs that defers legitimate mail indefinitely, so they are
+    # intentionally off. Only the cheap pre-220 tests (pregreet + DNSBL) run.
     cf = render("postfix/main.cf.tpl")
-    assert "postscreen_pipelining_enable = yes" in cf
-    assert "postscreen_non_smtp_command_enable = yes" in cf
-    assert "postscreen_bare_newline_enable = yes" in cf
-    assert "postscreen_pipelining_action = enforce" in cf
-    assert "postscreen_non_smtp_command_action = drop" in cf
-    assert "postscreen_bare_newline_action = enforce" in cf
+    assert "postscreen_pipelining_enable = no" in cf
+    assert "postscreen_non_smtp_command_enable = no" in cf
+    assert "postscreen_bare_newline_enable = no" in cf
+    # No enforce/drop actions for the disabled tests.
+    assert "postscreen_pipelining_action" not in cf
+    assert "postscreen_non_smtp_command_action" not in cf
+    assert "postscreen_bare_newline_action" not in cf
 
 
 def test_master_cf_uses_postscreen_on_25():

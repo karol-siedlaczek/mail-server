@@ -1,0 +1,6 @@
+#!/command/execlineb -P
+with-contenv
+fdmove -c 2 1
+# with-contenv imports the container env (LOCAL_RESOLVER_ENABLED); the shell body
+# decides whether to launch unbound or stay idle. See run-unbound.sh.
+/usr/local/bin/run-unbound.sh

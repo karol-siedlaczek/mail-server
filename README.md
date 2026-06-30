@@ -9,8 +9,8 @@ All mail data — `domains`, `users`, `forwardings`, `sender_login_maps`,
 `audit_logs` — lives in an **external PostgreSQL** database you own; the image
 reaches it only through operator-editable SQL maps under `sql/`. **Redis**
 (Rspamd state) and **ClamAV** (antivirus) are external too. CRUD management is the
-separate `mail-controller` companion image; this image ships only a non-interactive
-first-boot bootstrap seed.
+separate [`mail-controller`](https://github.com/karol-siedlaczek/mail-controller)
+companion image; this image ships only a non-interactive first-boot bootstrap seed.
 
 | Port | Service                                  |
 |------|------------------------------------------|
@@ -31,6 +31,10 @@ first-boot bootstrap seed.
 - **Rspamd** — milter: spam scoring, DKIM signing, SPF/DKIM/DMARC/ARC verify,
   ARC sealing, greylisting, ratelimiting, ClamAV glue. State in Redis.
 - **postsrsd 1.x** — SRS envelope rewriting so forwarded bounces stay SPF-aligned.
+- **unbound** — localhost recursive resolver. DNSBLs refuse lookups via public
+  resolvers (Docker's embedded DNS forwards to one), so it recurses public names
+  directly and forwards the appliance's own backend hostnames to Docker's DNS.
+  `render-config` writes the forward list and points `/etc/resolv.conf` at it.
 - **audit-svc** — tiny Python service writing `audit_logs` rows (auth via the
   Dovecot auth-policy endpoint; send/delivery via maillog correlation).
 
@@ -76,6 +80,7 @@ over `/tpl/*.tpl`). Every `VAR` may instead be supplied as `VAR__FILE=/path`
 | `POP3_ENABLED` | no | `false` | Expose POP3 110/995. |
 | `POSTSCREEN_ENABLED` | no | `true` | postscreen on :25. |
 | `GREYLISTING_ENABLED` | no | `true` | Rspamd greylisting (unauthenticated only). |
+| `LOCAL_RESOLVER_ENABLED` | no | `true` | Run the in-container unbound resolver and point `/etc/resolv.conf` at it (so DNSBLs aren't queried via a public resolver). Set `false` to keep Docker's embedded DNS and supply your own recursor (see DNS resolver). |
 | `MAIL_BOOTSTRAP_DOMAIN` | no | — | First-boot: domain to seed (see Day 1). |
 | `MAIL_BOOTSTRAP_ADMIN` | no | — | First-boot: admin mailbox (must be `@` the domain). |
 | `MAIL_BOOTSTRAP_PASSWORD` / `MAIL_BOOTSTRAP_PASSWORD__FILE` | no | — | First-boot: admin password (hashed in-image). |
@@ -294,6 +299,33 @@ reload Rspamd so it signs with the new key:
 `mail-dkim-keygen` refuses to overwrite a live key; to **rotate**, delete the
 `.key` file deliberately, re-run it, and publish the new TXT. Losing these keys
 silently breaks DKIM signing — back the directory up independently.
+
+### DNS resolver
+
+DNSBLs (Spamhaus, Barracuda, SpamCop) refuse lookups that arrive via large public
+resolvers. Docker's embedded DNS forwards to one, so by default the image runs its
+own **unbound** recursor on `127.0.0.1`: public names (DNSBL, MX) are resolved
+recursively from the container, while the appliance's backend hostnames
+(`PG_HOST`/`REDIS_HOST`/`CLAMAV_HOST`/`RELAYHOST`) are forwarded to Docker's DNS so
+service discovery still works. This needs outbound port 53 to the internet.
+
+To use your **own** resolver instead, set `LOCAL_RESOLVER_ENABLED=false` (the
+unbound daemon then stays down and `/etc/resolv.conf` is left on Docker's DNS) and
+point Docker's upstream at your recursor:
+
+```yaml
+services:
+  mail:
+    environment:
+      LOCAL_RESOLVER_ENABLED: "false"
+    dns:
+      - 10.0.0.53   # your resolver — must RECURSE, not forward to 8.8.8.8/1.1.1.1,
+                    # or Spamhaus sees the public resolver and blocks the query
+```
+
+Docker keeps `127.0.0.11` in the container (service names resolve) and forwards
+external queries to your resolver. A forwarder that relays to a public resolver
+defeats the purpose — it must do its own recursion.
 
 ## Day 1: Bootstrap
 

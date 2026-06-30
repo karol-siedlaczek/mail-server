@@ -45,6 +45,7 @@ RUN set -eux; \
         dovecot-sieve dovecot-pgsql dovecot-pop3d \
         rspamd \
         postsrsd \
+        unbound \
         redis-tools \
         postgresql-client \
         clamdscan \

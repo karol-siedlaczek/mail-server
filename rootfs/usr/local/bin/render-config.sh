@@ -68,6 +68,10 @@ set_default AUDIT_SCOPE         full
 set_default POP3_ENABLED        false
 set_default POSTSCREEN_ENABLED  true
 set_default GREYLISTING_ENABLED true
+# In-container recursive resolver (unbound). Set false to keep Docker's embedded
+# DNS and supply your own (e.g. a private recursor via compose `dns:`); when off
+# the unbound daemon stays down and /etc/resolv.conf is left untouched.
+set_default LOCAL_RESOLVER_ENABLED true
 # Audit DB creds fall back to the lookup-role creds when not given separately.
 set_default PG_AUDIT_USER       "${PG_USER:-}"
 set_default PG_AUDIT_PASSWORD   "${PG_PASSWORD:-}"
@@ -378,12 +382,78 @@ ensure_postfix_spool() {
     log "postfix queue tree ready under /var/spool/postfix"
 }
 
+# ── 8. Local resolver (unbound) ──────────────────────────────────────────────
+# DNSBLs (Spamhaus et al.) refuse queries via public/shared resolvers; Docker's
+# embedded DNS forwards to one, so every postscreen DNSBL lookup came back as the
+# error code 127.255.255.254 instead of a verdict. We run unbound as a localhost
+# RECURSING resolver (so DNSBL lookups originate from this container, not a public
+# resolver) and point /etc/resolv.conf at it (swap_resolver, the very last step).
+# The appliance's own backend hostnames must still resolve via Docker's embedded
+# DNS, so render one forward-zone per configured host. Skipped under RENDER_ROOT.
+render_unbound() {
+    [ -z "$RENDER_ROOT" ] || return 0
+    case "${LOCAL_RESOLVER_ENABLED:-true}" in
+        0|false|FALSE|False|no|off)
+            log "LOCAL_RESOLVER_ENABLED=false — in-container resolver off; keeping Docker DNS"
+            return 0 ;;
+    esac
+    local fwd=/etc/unbound/unbound.conf.d/10-docker-forward.conf
+    # Docker's embedded DNS == the nameserver currently in resolv.conf (we have
+    # not swapped it yet). Memoise it so a re-run after the swap still finds it.
+    local docker_dns
+    docker_dns="$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf 2>/dev/null)"
+    if [ "${docker_dns:-}" = "127.0.0.1" ] || [ -z "${docker_dns:-}" ]; then
+        docker_dns="$(cat /run/docker-dns 2>/dev/null || echo 127.0.0.11)"
+    fi
+    printf '%s\n' "$docker_dns" > /run/docker-dns 2>/dev/null || true
+    {
+        printf '# Rendered by render-config. Backend hostnames -> Docker DNS (%s).\n' "$docker_dns"
+        for host in "${PG_HOST:-}" "${REDIS_HOST:-}" "${CLAMAV_HOST:-}" "${RELAYHOST:-}"; do
+            [ -n "$host" ] || continue
+            # Unwrap an optional [host] / [host]:port / host:port (RELAYHOST forms).
+            host="${host#[}"; host="${host%%]*}"; host="${host%%:*}"
+            # Skip IP literals — they need no DNS.
+            case "$host" in
+                *:*) continue ;;            # IPv6 literal
+                *[!0-9.]*) : ;;             # has a non-(digit/dot) -> hostname
+                *) continue ;;              # all digits/dots -> IPv4 literal
+            esac
+            printf 'forward-zone:\n  name: "%s."\n  forward-addr: %s\n' "$host" "$docker_dns"
+        done
+    } > "$fwd"
+    log "unbound forward-zones rendered (backend names -> ${docker_dns})"
+}
+
+# Point the system resolver at unbound. LAST step on purpose: render-config's own
+# psql (DKIM maps, below) must still use Docker's DNS, and the unbound longrun
+# depends on render-config while every DNS-using service depends on unbound, so by
+# the time anything resolves through 127.0.0.1 unbound is up. Non-fatal: if
+# resolv.conf is read-only we keep Docker's DNS (DNSBL degraded, mail still flows).
+swap_resolver() {
+    [ -z "$RENDER_ROOT" ] || return 0
+    case "${LOCAL_RESOLVER_ENABLED:-true}" in
+        0|false|FALSE|False|no|off) return 0 ;;
+    esac
+    local keep
+    keep="$(awk '/^search|^domain/' /etc/resolv.conf 2>/dev/null)"
+    if {
+        printf 'nameserver 127.0.0.1\n'
+        [ -n "$keep" ] && printf '%s\n' "$keep"
+        printf 'options timeout:2 attempts:2\n'
+    } > /etc/resolv.conf 2>/dev/null; then
+        log "resolv.conf now points at the local unbound resolver"
+    else
+        log "WARNING: could not rewrite /etc/resolv.conf; keeping Docker DNS (DNSBL may stay blocked)"
+    fi
+}
+
 log "env resolved; rendering templates"
 render_templates
 gate_postscreen
 ensure_tls
 fix_ownership
 ensure_postfix_spool
+render_unbound
 
 # ── Rspamd ──────────────────────────────────────────────────────────────────
 # Output roots (overridable for tests).
@@ -478,5 +548,9 @@ else
     -c "SELECT domain, dkim_selector FROM domains WHERE active" \
     | render_dkim_maps
 fi
+
+# Last: repoint the system resolver at unbound (after the psql above, which must
+# still resolve PG_HOST via Docker's DNS).
+swap_resolver
 
 log "configuration rendered"

@@ -101,20 +101,27 @@ smtp_tls_security_level = may
 # (the offending command is rejected, the client is denied until it retries
 # cleanly). Combined with a weighted DNSBL score and deep protocol tests.
 postscreen_greet_action = enforce
+# Only genuine listing codes count — the =127.0.0.x filter ignores DNSBL error
+# replies (e.g. Spamhaus 127.255.255.x "query via public/blocked resolver"),
+# which otherwise score as a hit against EVERY sender and would reject real mail.
 postscreen_dnsbl_sites =
-    zen.spamhaus.org*2
-    b.barracudacentral.org*1
-    bl.spamcop.net*1
+    zen.spamhaus.org=127.0.0.[2..11]*2
+    b.barracudacentral.org=127.0.0.2*1
+    bl.spamcop.net=127.0.0.2*1
 postscreen_dnsbl_threshold = 3
 postscreen_dnsbl_allowlist_threshold = -1
 postscreen_dnsbl_action = enforce
-# Deep protocol tests (only seen by clients that pass the cheap tests above).
-postscreen_pipelining_enable = yes
-postscreen_pipelining_action = enforce
-postscreen_non_smtp_command_enable = yes
-postscreen_non_smtp_command_action = drop
-postscreen_bare_newline_enable = yes
-postscreen_bare_newline_action = enforce
+# Deep protocol tests (after-220) are DISABLED on purpose. postscreen speaks the
+# 220 greeting itself to run them, so it cannot hand the live session to smtpd —
+# every not-yet-cached client is forced to disconnect and reconnect before it may
+# deliver ("PASS NEW" + "450 4.3.2"). Large senders (Gmail, O365) rotate source
+# IPs, so each attempt is a fresh, uncached IP and legitimate mail is deferred
+# indefinitely instead of arriving. Postfix's own POSTSCREEN_README recommends
+# these only with care; the cheap pre-220 tests above (pregreet + weighted DNSBL)
+# give most of the botnet protection without the reconnect penalty.
+postscreen_pipelining_enable = no
+postscreen_non_smtp_command_enable = no
+postscreen_bare_newline_enable = no
 # Cache verdicts so good clients aren't re-tested on every connection.
 postscreen_cache_map = btree:$data_directory/postscreen_cache
 
