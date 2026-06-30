@@ -372,12 +372,16 @@ ensure_postfix_spool() {
     mkdir -p /var/spool/postfix/private
     chown postfix:root /var/spool/postfix/private 2>/dev/null || true
     chmod 0700 /var/spool/postfix/private
-    # `postfix check` additionally warns about ownership/permission problems and
-    # creates any other missing queue directories. Run it for hygiene, but keep
-    # it non-fatal — exactly like postfix/run, which ignores its exit code —
-    # while surfacing its output so genuine config issues are visible.
+    # `postfix set-permissions` creates any missing queue directories AND (re)owns
+    # the whole tree to the CURRENT postfix uid/gid. This matters across image
+    # rebuilds: the persistent /var/spool/postfix volume keeps the old numeric
+    # owner, so if the postfix uid shifts (e.g. a newly added package consumed an
+    # id) the queue dirs become unreadable and postfix loops on
+    # "postsuper: ... defer: Permission denied" / "Postfix integrity check failed".
+    # Running it every boot self-heals that. Non-fatal (a warning must not wedge
+    # boot) but its output is surfaced so real problems stay visible.
     local out
-    out="$(postfix check 2>&1)" || true
+    out="$(postfix set-permissions 2>&1)" || true
     [ -n "$out" ] && printf '%s\n' "$out" | sed 's/^/[render-config]   postfix: /' >&2
     log "postfix queue tree ready under /var/spool/postfix"
 }

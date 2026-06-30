@@ -25,6 +25,20 @@ ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
     S6_KILL_GRACETIME=20000 \
     S6_SERVICES_GRACETIME=20000
 
+# ── Pin postfix/postdrop ids BEFORE installing postfix ──────────────────────
+# Debian allocates the postfix user + postfix/postdrop groups dynamically at
+# install time, so adding/removing any package can shift those numeric ids.
+# The mail queue lives on a persistent volume (/var/spool/postfix) owned by
+# them; a shift orphans it across rebuilds (postsuper "Permission denied" /
+# "Postfix integrity check failed"). Fixed ids keep the volume valid forever;
+# postfix's postinst reuses these pre-existing user/groups. (vmail is pinned to
+# 5000 below for the same reason; render-config also self-heals via
+# `postfix set-permissions` at boot.)
+RUN set -eux; \
+    groupadd -g 5001 postfix; \
+    groupadd -g 5002 postdrop; \
+    useradd  -u 5001 -g postfix -M -s /usr/sbin/nologin -d /var/spool/postfix postfix
+
 # ── Base packages + APT repos (Rspamd from the official repo, which ships arm64) ──
 RUN set -eux; \
     apt-get update; \
