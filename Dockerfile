@@ -67,6 +67,13 @@ RUN set -eux; \
         openssl; \
     # Drop Debian's sysv/systemd auto-start cruft; s6 owns process lifecycle.
     rm -rf /etc/rcS.d /etc/rc?.d 2>/dev/null || true; \
+    # debian-slim strips /usr/share/man, but `postfix set-permissions` (run at
+    # boot to re-own the queue after a uid change) walks Postfix's file manifest
+    # and aborts with "chown: cannot access .../mailq.1.gz" before it ever fixes
+    # the queue dirs. Drop the man-page entries from the manifest so it completes.
+    find /etc/postfix /usr/lib/postfix /usr/share/postfix /usr/libexec/postfix \
+        -name 'postfix-files' -type f -exec sed -i '\#/usr/share/man#d' {} + \
+        2>/dev/null || true; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
 

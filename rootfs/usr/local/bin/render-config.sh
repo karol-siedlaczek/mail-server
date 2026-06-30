@@ -383,6 +383,15 @@ ensure_postfix_spool() {
     local out
     out="$(postfix set-permissions 2>&1)" || true
     [ -n "$out" ] && printf '%s\n' "$out" | sed 's/^/[render-config]   postfix: /' >&2
+    # Belt-and-suspenders: explicitly re-own the message-queue dirs to the postfix
+    # user (group left as-is, modes already correct on the volume). These are what
+    # postsuper opens during postfix's startup integrity check; a stale uid (from
+    # an older image) makes it loop on "defer: Permission denied". chown is safe
+    # and idempotent, and covers us even if set-permissions skips the live queue.
+    local q
+    for q in incoming active deferred defer bounce flush saved trace corrupt hold private; do
+        [ -d "/var/spool/postfix/$q" ] && chown -R postfix "/var/spool/postfix/$q" 2>/dev/null || true
+    done
     log "postfix queue tree ready under /var/spool/postfix"
 }
 
