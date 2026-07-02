@@ -51,6 +51,12 @@ milter_mail_macros = i {auth_type} {auth_authen} {auth_author} {mail_addr} {clie
 # ARC seal / DKIM at Gmail. Disable it on the outbound/forward path.
 smtp_line_length_limit = 0
 
+# Try IPv4 first when delivering outbound. Hosts without working IPv6 egress
+# otherwise waste time on "connect to [2a00:...]:25: Network is unreachable"
+# before falling back to IPv4. (If you set up real IPv6 + AAAA + IPv6 PTR,
+# remove this so Postfix can use IPv6.)
+smtp_address_preference = ipv4
+
 # SRS envelope rewriting via postsrsd 1.x tcp: table interface (phase H).
 sender_canonical_maps = tcp:localhost:10001
 sender_canonical_classes = envelope_sender

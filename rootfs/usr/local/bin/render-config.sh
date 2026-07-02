@@ -82,6 +82,12 @@ set_default PG_AUDIT_PASSWORD   "${PG_PASSWORD:-}"
 # reference ${SRS_DOMAIN}.  Example: mail.example.test -> example.test.
 SRS_DOMAIN="${MAIL_HOSTNAME#*.}"
 export SRS_DOMAIN
+# Make SRS_DOMAIN visible to sibling s6 services. render-config's own `export`
+# does not propagate to other services, but the postsrsd longrun needs it (it
+# passes -d ${SRS_DOMAIN}); s6's with-contenv reads /run/s6/container_environment.
+if [ -z "${RENDER_ROOT:-}" ] && [ -d /run/s6/container_environment ]; then
+    printf '%s' "$SRS_DOMAIN" > /run/s6/container_environment/SRS_DOMAIN
+fi
 
 # ── 2c. Derived variables for Dovecot templates ──────────────────────────────
 # These are computed from the primary env knobs above and passed to envsubst.
