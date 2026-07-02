@@ -15,3 +15,10 @@ def test_virtual_alias_skips_local_users():
     assert "not exists" in q and "from users" in q
     # keep_copy self-mapping must be gone (Sieve now owns keep-copy semantics).
     assert "keep_copy" not in q
+
+def test_rspamd_milter_headers_adds_x_spam():
+    tpl = (REPO / "rootfs" / "tpl" / "rspamd" / "local.d" / "milter_headers.conf.tpl")
+    assert tpl.is_file(), "milter_headers.conf.tpl missing"
+    text = tpl.read_text()
+    assert 'spam_header' in text
+    assert '"X-Spam"' in text and '"Yes"' in text
