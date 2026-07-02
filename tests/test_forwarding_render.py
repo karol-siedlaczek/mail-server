@@ -7,3 +7,11 @@ def test_schema_has_forwardings_notify_trigger():
     assert "pg_notify('forwardings_changed'" in sql
     assert "AFTER INSERT OR UPDATE OR DELETE ON forwardings" in sql
     assert "FOR EACH STATEMENT" in sql
+
+def test_virtual_alias_skips_local_users():
+    tpl = (REPO / "sql" / "postfix" / "virtual_alias_maps.cf.tpl").read_text()
+    q = tpl.lower()
+    # forwarding is only applied when the source is NOT a local mailbox user.
+    assert "not exists" in q and "from users" in q
+    # keep_copy self-mapping must be gone (Sieve now owns keep-copy semantics).
+    assert "keep_copy" not in q
