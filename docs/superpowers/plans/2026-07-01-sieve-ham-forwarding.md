@@ -183,8 +183,14 @@ def test_rspamd_milter_headers_adds_x_spam():
     tpl = (REPO / "rootfs" / "tpl" / "rspamd" / "local.d" / "milter_headers.conf.tpl")
     assert tpl.is_file(), "milter_headers.conf.tpl missing"
     text = tpl.read_text()
-    assert 'spam_header' in text
-    assert '"X-Spam"' in text and '"Yes"' in text
+    # correct rspamd milter_headers API: activate the built-in 'spam-header'
+    # routine and customise it to X-Spam: Yes via a routines{} block.
+    assert '"spam-header"' in text
+    assert "routines" in text
+    assert 'header = "X-Spam"' in text
+    assert 'value = "Yes"' in text
+    assert '"x-spam-header"' not in text
+    assert "spam_header_value" not in text
 ```
 
 - [ ] **Step 2: Run it, expect FAIL**
@@ -195,14 +201,19 @@ Expected: FAIL (file missing).
 - [ ] **Step 3: Create `rootfs/tpl/rspamd/local.d/milter_headers.conf.tpl`**
 
 ```
-# Guarantee a deterministic spam marker for the Sieve forward gate. Rspamd adds
-# "X-Spam: Yes" when the action is 'add header' (score >= the add_header action
-# in actions.conf). The sieve-forward-sync script forwards a message ONLY when
-# this header is absent, so spam is never relayed to external mailboxes.
-use = ["x-spam-header", "x-spamd-result", "authentication-results"];
-spam_header = "X-Spam";
-spam_header_value = "Yes";
-authenticated_headers = ["authentication-results"];
+# Guarantee a deterministic spam marker for the Sieve forward gate. Rspamd's
+# milter_headers 'spam-header' routine adds a header on the add-header action
+# (score >= the add_header action in actions.conf); we customise it to
+# "X-Spam: Yes". The sieve-forward-sync script forwards a message ONLY when this
+# header is absent, so spam is never relayed to external mailboxes.
+use = ["spam-header", "x-spamd-result", "authentication-results"];
+
+routines {
+  "spam-header" {
+    header = "X-Spam";
+    value = "Yes";
+  }
+}
 ```
 
 - [ ] **Step 4: Run test, expect PASS**

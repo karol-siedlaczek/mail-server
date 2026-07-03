@@ -20,5 +20,12 @@ def test_rspamd_milter_headers_adds_x_spam():
     tpl = (REPO / "rootfs" / "tpl" / "rspamd" / "local.d" / "milter_headers.conf.tpl")
     assert tpl.is_file(), "milter_headers.conf.tpl missing"
     text = tpl.read_text()
-    assert 'spam_header' in text
-    assert '"X-Spam"' in text and '"Yes"' in text
+    # correct rspamd milter_headers API: activate the built-in 'spam-header'
+    # routine and customise it to X-Spam: Yes via a routines{} block.
+    assert '"spam-header"' in text
+    assert "routines" in text
+    assert 'header = "X-Spam"' in text
+    assert 'value = "Yes"' in text
+    # guard against the previously-fabricated keys/routine name
+    assert '"x-spam-header"' not in text
+    assert "spam_header_value" not in text
