@@ -41,6 +41,18 @@ def test_build_sieve_escapes_quotes():
     s = _load().build_sieve([('x"y@ex.pl', 'd@gmail.com', False)])
     assert '\\"' in s
 
+def test_build_sieve_mixed_keep_copy_promotes_all_to_copy():
+    # If ANY row for a source keeps a copy, every destination for that source
+    # uses :copy and the block must NOT emit `stop` (implicit keep survives).
+    s = _load().build_sieve([
+        ("a@ex.pl", "one@gmail.com", False),
+        ("a@ex.pl", "two@out.com", True),
+    ])
+    assert 'redirect :copy "one@gmail.com";' in s
+    assert 'redirect :copy "two@out.com";' in s
+    assert 'redirect "one@gmail.com";' not in s   # no bare (non-copy) redirect
+    assert "stop;" not in s
+
 def test_build_sieve_empty_is_valid_noop():
     s = _load().build_sieve([])
     assert s.strip().startswith("require")

@@ -29,6 +29,10 @@ def build_sieve(rows):
     for source in sorted(by_source):
         entry = by_source[source]
         keep = entry["keep"]
+        # `:is` matches the full recipient (default i;ascii-casemap comparator is
+        # case-insensitive, so a mixed-case envelope still matches the lowercased
+        # source). Assumes no recipient_delimiter: with plus-addressing enabled,
+        # mail to source+tag@domain would not match here (fails safe: not forwarded).
         lines.append(f'if envelope :is "to" "{_q(source)}" {{')
         lines.append('  if not header :contains "X-Spam" "Yes" {')
         for dest in entry["dests"]:
