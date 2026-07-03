@@ -41,3 +41,92 @@ def build_sieve(rows):
         lines.append("  }")
         lines.append("}")
     return "\n".join(lines) + "\n"
+
+
+import os
+import select
+import subprocess
+import sys
+import tempfile
+import time
+
+SIEVE_OUT = os.environ.get("SIEVE_OUT", "/var/lib/dovecot/sieve/forward.sieve")
+POLL_SECONDS = int(os.environ.get("SIEVE_SYNC_INTERVAL", "60"))  # fallback resync
+
+
+def log(msg):
+    print(f"sieve-forward-sync: {msg}", flush=True)
+
+
+def fetch_rows(conn):
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT f.source, f.destination, f.keep_copy "
+            "FROM forwardings f JOIN users u ON u.email = f.source "
+            "WHERE f.active AND u.active"
+        )
+        return cur.fetchall()
+
+
+def write_script(text, out_path=SIEVE_OUT):
+    """Atomically write the Sieve script; compile to .svbin when sievec exists.
+    A compile failure is logged but never deletes the working script."""
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    d = os.path.dirname(out_path)
+    fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(text)
+        os.replace(tmp, out_path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+    if _which("sievec"):
+        r = subprocess.run(["sievec", out_path], capture_output=True, text=True)
+        if r.returncode != 0:
+            log(f"WARNING: sievec failed: {r.stderr.strip()}")
+
+
+def _which(prog):
+    from shutil import which
+    return which(prog)
+
+
+def regenerate(conn):
+    rows = fetch_rows(conn)
+    write_script(build_sieve(rows))
+    log(f"regenerated {SIEVE_OUT} ({len(rows)} forward row(s))")
+
+
+def main():
+    import psycopg2  # provided by python3-psycopg2 in the image
+    dsn = dict(
+        host=os.environ["PG_HOST"],
+        port=os.environ.get("PG_PORT", "5432"),
+        dbname=os.environ["PG_DBNAME"],
+        user=os.environ["PG_USER"],
+        password=os.environ.get("PG_PASSWORD", ""),
+    )
+    while True:
+        try:
+            conn = psycopg2.connect(**dsn)
+            conn.autocommit = True
+            with conn.cursor() as cur:
+                cur.execute("LISTEN forwardings_changed")
+            log("connected; listening on forwardings_changed")
+            regenerate(conn)
+            while True:
+                if select.select([conn], [], [], POLL_SECONDS) == ([], [], []):
+                    regenerate(conn)          # periodic fallback resync
+                    continue
+                conn.poll()
+                if conn.notifies:
+                    conn.notifies.clear()
+                    regenerate(conn)
+        except Exception as exc:                # DB down / restart → back off
+            log(f"error: {exc}; retrying in 5s")
+            time.sleep(5)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

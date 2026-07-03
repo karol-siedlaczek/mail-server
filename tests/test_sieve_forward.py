@@ -44,3 +44,11 @@ def test_build_sieve_escapes_quotes():
 def test_build_sieve_empty_is_valid_noop():
     s = _load().build_sieve([])
     assert s.strip().startswith("require")
+
+def test_write_script_atomic_and_compiles_optional(tmp_path):
+    mod = _load()
+    out = tmp_path / "forward.sieve"
+    mod.write_script('require ["envelope"];\n', str(out))
+    assert out.read_text().startswith("require")
+    # temp file must not linger
+    assert not any(p.name.endswith(".tmp") for p in tmp_path.iterdir())
