@@ -576,7 +576,10 @@ git commit -m "feat(s6): supervise sieve-forward-sync daemon"
 - Consumes: the runtime script `/var/lib/dovecot/sieve/forward.sieve` (Task 5).
 - Produces: `/etc/dovecot/conf.d/95-sieve.conf` that runs the global forward script before personal scripts, at LMTP delivery.
 
-> **Syntax note (verify against Pigeonhole 2.4.1 in-container):** the widely-compatible form is a `plugin { sieve_before = ... }` block. If `doveconf -n` warns/errors on 2.4, switch to the 2.4 named form `sieve_script before { path = ... }`. Step 5 verifies this in the container before finishing.
+> **Syntax note:** Dovecot 2.4 REMOVED the `plugin { }` block, so the 2.3
+> `plugin { sieve_before = ... }` form does not work here — use named
+> `sieve_script` blocks (`type = before`) per the 2.4.1 sieve settings docs.
+> Confirm with `doveconf -n` in-container (Task 8).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -586,7 +589,9 @@ def test_sieve_before_conf_points_at_generated_script():
     assert tpl.is_file()
     text = tpl.read_text()
     assert "/var/lib/dovecot/sieve/forward.sieve" in text
-    assert "sieve_before" in text
+    assert "sieve_script" in text
+    assert "type = before" in text
+    assert "plugin {" not in text
 
 def test_render_map_has_sieve_conf():
     rm = (REPO / "rootfs" / "tpl" / "render.map").read_text()
@@ -606,9 +611,17 @@ Expected: FAIL (file + mapping missing).
 # The forward script is generated from psql `forwardings` by sieve-forward-sync
 # and does the spam-gated external redirect. Personal scripts (~/.dovecot.sieve
 # via ManageSieve) still run afterwards.
-plugin {
-  sieve_before = /var/lib/dovecot/sieve/forward.sieve
-  sieve = file:~/sieve;active=~/.dovecot.sieve
+#
+# Dovecot 2.4 syntax: named `sieve_script` blocks. The 2.3 `plugin { sieve_before
+# = ... }` block was removed in 2.4.
+sieve_script personal {
+  path = ~/sieve
+  active_path = ~/.dovecot.sieve
+}
+
+sieve_script forward {
+  type = before
+  path = /var/lib/dovecot/sieve/forward.sieve
 }
 ```
 

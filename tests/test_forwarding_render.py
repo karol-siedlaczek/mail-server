@@ -35,7 +35,11 @@ def test_sieve_before_conf_points_at_generated_script():
     assert tpl.is_file()
     text = tpl.read_text()
     assert "/var/lib/dovecot/sieve/forward.sieve" in text
-    assert "sieve_before" in text
+    # Dovecot 2.4: a named sieve_script block with type=before (NOT the removed
+    # 2.3 `plugin { sieve_before }` form).
+    assert "sieve_script" in text
+    assert "type = before" in text
+    assert "plugin {" not in text
 
 def test_render_map_has_sieve_conf():
     rm = (REPO / "rootfs" / "tpl" / "render.map").read_text()
