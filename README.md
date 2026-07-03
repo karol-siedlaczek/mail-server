@@ -73,6 +73,7 @@ over `/tpl/*.tpl`). Every `VAR` may instead be supplied as `VAR__FILE=/path`
 | `ALLOW_WEAK_SCHEMES` | no | `false` | `true` ONLY during `{MD5-CRYPT}` migration. |
 | `MESSAGE_SIZE_LIMIT` | no | `52428800` | Max message bytes (50 MB). |
 | `RSPAMD_REJECT_SCORE` | no | `15` | Rspamd reject threshold. |
+| `RSPAMD_CONTROLLER_PASSWORD` / `RSPAMD_CONTROLLER_PASSWORD__FILE` | no | — | When set, the Rspamd controller (web UI + API) binds `*:11334` (reachable by a reverse proxy / HAProxy on the network) and requires this password; plaintext is hashed at boot, or pass an `rspamadm pw` hash. Unset → controller stays `127.0.0.1:11334`. |
 | `DMARC_REPORT_ENABLED` | no | `false` | Send daily aggregate DMARC reports. |
 | `DMARC_REPORT_EMAIL` | no | — | From/contact for aggregate reports. |
 | `AUDIT_ENABLED` | no | `true` | Enable the `audit_logs` subsystem. |
@@ -205,6 +206,13 @@ GRANT "mail-server-ro"    TO "mail-server-ro_user";
 GRANT "mail-server-audit" TO "mail-server-audit_user";
 SQL
 ```
+
+`schema.sql` is **idempotent** — re-run it on an existing database to pick up
+additions. In particular it installs a `NOTIFY forwardings_changed` trigger that
+lets the Sieve forwarding sync react to `forwardings` changes instantly. The
+trigger is **optional**: without it the sync still refreshes on a ~60s fallback
+timer, so re-applying `schema.sql` only upgrades update latency from ~60s to ~1s.
+It needs no new grants (`pg_notify` runs as the writer; the daemon only `LISTEN`s).
 
 > [!NOTE]
 > The first-boot bootstrap (below) needs **INSERT on `domains` and `users`**. The

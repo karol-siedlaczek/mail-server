@@ -3,7 +3,13 @@
 # Flags: -s secret-file  -d srs-domain  -f forward-port  -r reverse-port
 #        -l listen-addr  -4 IPv4-only
 # Do NOT replace with "postsrsd -C /etc/postsrsd.conf" (that is the 2.x API).
+#
+# -d is the BARE domain (SRS_DOMAIN, e.g. siedlaczek.com.pl), NOT MAIL_HOSTNAME.
+# The SRS domain must equal the local sender domain, otherwise postsrsd treats
+# locally-submitted mail from that domain as foreign and rewrites its envelope
+# sender to SRS0=...@<hostname> — a domain with no SPF record, so the receiver
+# sees SPF=none. render-config exports SRS_DOMAIN into the s6 container env.
 with-contenv
 fdmove -c 2 1
-importas -D "" MAIL_HOSTNAME MAIL_HOSTNAME
-postsrsd -s /etc/postsrsd.secret -d ${MAIL_HOSTNAME} -f 10001 -r 10002 -l 127.0.0.1 -4
+importas -D "" SRS_DOMAIN SRS_DOMAIN
+postsrsd -s /etc/postsrsd.secret -d ${SRS_DOMAIN} -f 10001 -r 10002 -l 127.0.0.1 -4

@@ -24,7 +24,7 @@ die()  { printf '[render-config] ERROR: %s\n' "$*" >&2; exit 1; }
 # VAR itself is empty, so an explicit env value always wins. A VAR__FILE that
 # names a missing/unreadable file is a hard error (fail fast, never silently
 # start with no password).
-SECRET_VARS="PG_PASSWORD PG_AUDIT_PASSWORD REDIS_PASSWORD RELAYHOST_PASSWORD MAIL_BOOTSTRAP_PASSWORD"
+SECRET_VARS="PG_PASSWORD PG_AUDIT_PASSWORD REDIS_PASSWORD RELAYHOST_PASSWORD MAIL_BOOTSTRAP_PASSWORD RSPAMD_CONTROLLER_PASSWORD"
 for var in $SECRET_VARS; do
     file_var="${var}__FILE"
     file_path="${!file_var:-}"
@@ -82,6 +82,12 @@ set_default PG_AUDIT_PASSWORD   "${PG_PASSWORD:-}"
 # reference ${SRS_DOMAIN}.  Example: mail.example.test -> example.test.
 SRS_DOMAIN="${MAIL_HOSTNAME#*.}"
 export SRS_DOMAIN
+# Make SRS_DOMAIN visible to sibling s6 services. render-config's own `export`
+# does not propagate to other services, but the postsrsd longrun needs it (it
+# passes -d ${SRS_DOMAIN}); s6's with-contenv reads /run/s6/container_environment.
+if [ -z "${RENDER_ROOT:-}" ] && [ -d /run/s6/container_environment ]; then
+    printf '%s' "$SRS_DOMAIN" > /run/s6/container_environment/SRS_DOMAIN
+fi
 
 # ── 2c. Derived variables for Dovecot templates ──────────────────────────────
 # These are computed from the primary env knobs above and passed to envsubst.
@@ -534,6 +540,41 @@ case "${GREYLISTING_ENABLED:-true}" in
         printf 'enabled = false;\n' > "$RSPAMD_LOCALD_DIR/greylist.conf"
         ;;
 esac
+
+# --- Controller bind (HAProxy backend) ---------------------------------------
+# The Rspamd controller (web UI + HTTP API on :11334) is localhost-only by
+# default. Expose it on all interfaces — so a reverse proxy / load balancer
+# (e.g. HAProxy on the same Docker network) can reach it — ONLY when a password
+# is configured, so an unauthenticated controller is never opened to the network.
+# RSPAMD_CONTROLLER_PASSWORD may be plaintext (hashed here with `rspamadm pw`,
+# mirroring how mail-bootstrap uses `doveadm pw`) or an already-hashed value
+# (starts with '$'), which is injected verbatim (also lets tests exercise the
+# exposed path without rspamadm). Without a usable hash we stay localhost-only.
+_ctrl="$RSPAMD_LOCALD_DIR/worker-controller.inc"
+_cpw="${RSPAMD_CONTROLLER_PASSWORD:-}"
+if [ -n "$_cpw" ]; then
+    case "$_cpw" in
+        \$*) _chash="$_cpw" ;;                       # already an rspamadm hash
+        *)   if command -v rspamadm >/dev/null 2>&1; then
+                 _chash="$(rspamadm pw -q -p "$_cpw" 2>/dev/null || true)"
+             else
+                 _chash=""
+             fi ;;
+    esac
+    if [ -n "$_chash" ]; then
+        {
+            printf 'bind_socket = "*:11334";\n'
+            printf 'password = "%s";\n' "$_chash"
+            printf 'enable_password = "%s";\n' "$_chash"
+        } > "$_ctrl"
+        log "rspamd controller: bound *:11334 with password (HAProxy backend)"
+    else
+        printf 'bind_socket = "127.0.0.1:11334";\n' > "$_ctrl"
+        log "WARNING: RSPAMD_CONTROLLER_PASSWORD set but could not hash it (rspamadm missing?); controller stays localhost-only"
+    fi
+else
+    printf 'bind_socket = "127.0.0.1:11334";\n' > "$_ctrl"
+fi
 
 # DKIM/ARC maps: domain->selector and domain->keypath, from the active domains.
 # RSPAMD_DKIM_ROWS (newline-separated "domain selector") lets tests inject rows

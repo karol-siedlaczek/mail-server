@@ -192,3 +192,31 @@ def test_dkim_maps_rendered_from_db(tmp_path):
     assert "foo.test default" in sel
     assert "example.test /var/lib/rspamd/dkim/example.test.test.key" in paths
     assert "foo.test /var/lib/rspamd/dkim/foo.test.default.key" in paths
+
+
+def test_controller_localhost_by_default(rendered):
+    """No RSPAMD_CONTROLLER_PASSWORD → controller stays bound to 127.0.0.1."""
+    t = read(rendered, "worker-controller.inc")
+    assert 'bind_socket = "127.0.0.1:11334";' in t
+    assert '"*:11334"' not in t
+
+
+def test_controller_exposed_with_password(tmp_path):
+    """RSPAMD_CONTROLLER_PASSWORD (pre-hashed) → controller binds *:11334 with
+    the password, so a reverse proxy / HAProxy backend can reach it."""
+    localdir = tmp_path / "rspamd" / "local.d"
+    dkimdir = tmp_path / "rspamd" / "dkim"
+    localdir.mkdir(parents=True); dkimdir.mkdir(parents=True)
+    env = dict(os.environ); env.update(BASE_ENV)
+    # an already-hashed value ('$...') is injected verbatim (no rspamadm needed)
+    env["RSPAMD_CONTROLLER_PASSWORD"] = "$2$abc123$deadbeefcafe"
+    env["RSPAMD_LOCALD_DIR"] = str(localdir)
+    env["RSPAMD_DKIM_DIR"] = str(dkimdir)
+    env["RSPAMD_SKIP_DB"] = "1"
+    env["RENDER_ROOT"] = str(tmp_path / "render_root")
+    subprocess.run(["bash", str(RENDER)], env=env, check=True,
+                   cwd=str(REPO), capture_output=True)
+    t = (localdir / "worker-controller.inc").read_text()
+    assert 'bind_socket = "*:11334";' in t
+    assert 'password = "$2$abc123$deadbeefcafe";' in t
+    assert 'enable_password = "$2$abc123$deadbeefcafe";' in t

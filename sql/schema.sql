@@ -38,6 +38,24 @@ CREATE TABLE IF NOT EXISTS forwardings (
 CREATE INDEX IF NOT EXISTS forwardings_source_active_idx
   ON forwardings (source) WHERE active;
 
+-- ── forwardings change notification (Sieve forward sync) ────────────────────
+-- The mail-server sieve-forward-sync daemon LISTENs on 'forwardings_changed'
+-- and regenerates the Sieve forward script. Statement-level (one NOTIFY per
+-- statement, not per row). Runs as whoever writes forwardings (mail-controller);
+-- pg_notify needs no special privilege.
+CREATE OR REPLACE FUNCTION notify_forwardings_changed() RETURNS trigger
+  LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_notify('forwardings_changed', '');
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS forwardings_notify ON forwardings;
+CREATE TRIGGER forwardings_notify
+  AFTER INSERT OR UPDATE OR DELETE ON forwardings
+  FOR EACH STATEMENT EXECUTE FUNCTION notify_forwardings_changed();
+
 -- ── sender_login_maps (send-as delegation grants) ──────────────────────────
 CREATE TABLE IF NOT EXISTS sender_login_maps (
   id             bigserial PRIMARY KEY,

@@ -1,4 +1,4 @@
-"""Schema structure + the two correctness-critical UNION lookup queries.
+"""Schema structure + the two correctness-critical lookup queries.
 
 These mirror the SPEC's KEY QUERIES verbatim so the rendered Postfix pgsql maps
 (phases D/E) stay byte-identical to what is proven correct here.
@@ -13,15 +13,13 @@ UNION
 SELECT login_email FROM sender_login_maps WHERE allowed_sender=lower(%(k)s) AND active
 """
 
-# virtual_alias_maps (forwarding + optional local copy): %s = recipient
+# virtual_alias_maps (forwarding for NON-mailbox sources only; mailboxed
+# addresses deliver locally and Sieve does the spam-gated forward): %s = recipient
 VIRTUAL_ALIAS_MAPS_Q = """
-SELECT destination FROM forwardings WHERE source=lower(%(k)s) AND active
-UNION
-SELECT lower(%(k)s)
- WHERE EXISTS (SELECT 1 FROM forwardings f
-                WHERE f.source=lower(%(k)s) AND f.active AND f.keep_copy)
-   AND EXISTS (SELECT 1 FROM users u
-                WHERE u.email=lower(%(k)s) AND u.active)
+SELECT f.destination FROM forwardings f
+ WHERE f.source=lower(%(k)s) AND f.active
+   AND NOT EXISTS (SELECT 1 FROM users u
+                    WHERE u.email=lower(%(k)s) AND u.active)
 """
 
 EXPECTED_TABLES = {
@@ -250,7 +248,7 @@ def test_sender_login_maps_case_insensitive(conn):
 
 
 # ---------------------------------------------------------------------------
-# virtual_alias_maps UNION: keep_copy guard
+# virtual_alias_maps: non-mailbox source redirects
 # ---------------------------------------------------------------------------
 def test_virtual_alias_plain_redirect(conn):
     """A plain (keep_copy=false) row returns only the destination(s)."""
@@ -265,8 +263,8 @@ def test_virtual_alias_plain_redirect(conn):
     assert dests == {"external@elsewhere.test"}
 
 
-def test_virtual_alias_keep_copy_real_mailbox(conn):
-    """keep_copy=true AND source is a real active mailbox -> dest + self."""
+def test_virtual_alias_mailbox_source_not_redirected(conn):
+    """Source that IS an active mailbox user returns no rows (Sieve handles it)."""
     with conn.cursor() as cur:
         _seed_domain_user(cur, "carol@example.test")
         cur.execute(
@@ -276,11 +274,11 @@ def test_virtual_alias_keep_copy_real_mailbox(conn):
         )
         cur.execute(VIRTUAL_ALIAS_MAPS_Q, {"k": "carol@example.test"})
         dests = {r[0] for r in cur.fetchall()}
-    assert dests == {"external@elsewhere.test", "carol@example.test"}
+    assert dests == set()
 
 
 def test_virtual_alias_keep_copy_not_a_mailbox(conn):
-    """keep_copy=true but source is NOT a mailbox -> dest only, no self."""
+    """Non-mailbox source is redirected to its destination."""
     with conn.cursor() as cur:
         # no users row for ghost@example.test
         cur.execute(
@@ -290,7 +288,6 @@ def test_virtual_alias_keep_copy_not_a_mailbox(conn):
         )
         cur.execute(VIRTUAL_ALIAS_MAPS_Q, {"k": "ghost@example.test"})
         dests = {r[0] for r in cur.fetchall()}
-    # self NOT added: the guard requires an active users row for the source
     assert dests == {"external@elsewhere.test"}
 
 
