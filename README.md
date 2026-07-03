@@ -207,6 +207,13 @@ GRANT "mail-server-audit" TO "mail-server-audit_user";
 SQL
 ```
 
+`schema.sql` is **idempotent** — re-run it on an existing database to pick up
+additions. In particular it installs a `NOTIFY forwardings_changed` trigger that
+lets the Sieve forwarding sync react to `forwardings` changes instantly. The
+trigger is **optional**: without it the sync still refreshes on a ~60s fallback
+timer, so re-applying `schema.sql` only upgrades update latency from ~60s to ~1s.
+It needs no new grants (`pg_notify` runs as the writer; the daemon only `LISTEN`s).
+
 > [!NOTE]
 > The first-boot bootstrap (below) needs **INSERT on `domains` and `users`**. The
 > `mail-server-ro` role is SELECT-only by design. For the seed either (a) point
