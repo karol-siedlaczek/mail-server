@@ -29,3 +29,15 @@ def test_rspamd_milter_headers_adds_x_spam():
     # guard against the previously-fabricated keys/routine name
     assert '"x-spam-header"' not in text
     assert "spam_header_value" not in text
+
+def test_sieve_before_conf_points_at_generated_script():
+    tpl = REPO / "rootfs" / "tpl" / "dovecot" / "95-sieve.conf.tpl"
+    assert tpl.is_file()
+    text = tpl.read_text()
+    assert "/var/lib/dovecot/sieve/forward.sieve" in text
+    assert "sieve_before" in text
+
+def test_render_map_has_sieve_conf():
+    rm = (REPO / "rootfs" / "tpl" / "render.map").read_text()
+    assert "tpl/dovecot/95-sieve.conf.tpl" in rm
+    assert "/etc/dovecot/conf.d/95-sieve.conf" in rm
