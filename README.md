@@ -259,10 +259,10 @@ A starting policy is shipped at
 
 ## Operations
 
-- **Health:** `docker compose exec mail /usr/local/bin/healthcheck.sh` —
+- **Health:** `docker compose exec mail-server /usr/local/bin/healthcheck.sh` —
   aggregates `postfix status`, `doveadm service status`, `rspamadm control stat`,
   and (if configured) Redis `PING`. `start-period` ~120s for warm-up.
-- **Queue:** `docker compose exec mail postqueue -p` (list) / `postqueue -f`
+- **Queue:** `docker compose exec mail-server postqueue -p` (list) / `postqueue -f`
   (flush). Shutdown raises `S6_KILL_GRACETIME` (~20s) so the queue drains.
 - **Config sanity:** `postfix check`, `doveconf -n`, `rspamadm configtest`.
 - **Logs / audit:** daemon logs on container stdout; durable audit in the
@@ -285,14 +285,14 @@ domain/selector:
 List what exists:
 
 ```bash
-docker compose exec mail ls -l /var/lib/rspamd/dkim/
+docker compose exec mail-server ls -l /var/lib/rspamd/dkim/
 ```
 
 If you booted **without** `MAIL_BOOTSTRAP_DOMAIN` (so the Day 1 seed was skipped),
 this directory is empty and no signing key was generated — create one by hand:
 
 ```bash
-docker compose exec mail mail-dkim-keygen example.com default
+docker compose exec mail-server mail-dkim-keygen example.com default
 ```
 
 This writes `example.com.default.key` and prints the DNS TXT to publish at
@@ -301,7 +301,7 @@ reload Rspamd so it signs with the new key:
 
 1. set `domains.dkim_selector = 'default'` for the domain in Postgres (or via
    `mail-controller`),
-2. `docker compose exec mail s6-svc -r /run/service/rspamd` (or restart the
+2. `docker compose exec mail-server s6-svc -r /run/service/rspamd` (or restart the
    container).
 
 `mail-dkim-keygen` refuses to overwrite a live key; to **rotate**, delete the
@@ -334,6 +334,35 @@ services:
 Docker keeps `127.0.0.11` in the container (service names resolve) and forwards
 external queries to your resolver. A forwarder that relays to a public resolver
 defeats the purpose — it must do its own recursion.
+
+### Reading a mailbox
+
+Mail is stored as Maildir under `/var/vmail/<domain>/<localpart>/Maildir`.
+Three ways to read it:
+
+**IMAP client** (Thunderbird, Outlook, mobile) — the normal way:
+- Server `mail.example.com`, port **993** (implicit TLS) or **143** (STARTTLS)
+- Username = the **full address** (e.g. `alice@example.com`), password = the user's password
+- Submission for sending: **587** (STARTTLS) / **465** (implicit TLS), same credentials
+
+**Server-side peek with `doveadm`** (no client needed — handy for debugging):
+```bash
+docker compose exec mail-server doveadm mailbox list -u alice@example.com
+docker compose exec mail-server doveadm fetch -u alice@example.com \
+  "date.received hdr.from hdr.subject" mailbox INBOX all
+docker compose exec mail-server doveadm fetch -u alice@example.com "text" mailbox Junk all
+```
+
+**On disk** (raw Maildir):
+```bash
+docker compose exec mail-server ls -l /var/vmail/example.com/alice/Maildir/{new,cur}
+```
+
+The mailbox directory is created on the user's first login or first local
+delivery. Note (with Sieve forwarding enabled): a message forwarded with
+`keep_copy=false` leaves no local copy, but mail marked spam is never forwarded
+and lands locally instead — so a forward-only mailbox still accumulates spam
+(check `Junk`).
 
 ## Day 1: Bootstrap
 
