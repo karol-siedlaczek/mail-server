@@ -64,3 +64,16 @@ def test_write_script_atomic_and_compiles_optional(tmp_path):
     assert out.read_text().startswith("require")
     # temp file must not linger
     assert not any(p.name.endswith(".tmp") for p in tmp_path.iterdir())
+
+
+def test_write_script_is_readable_by_dovecot(tmp_path):
+    # Dovecot runs Sieve as vmail, not root; a 0600 root file (mkstemp default)
+    # is unreadable and silently disables forwarding. It must be world/group
+    # readable (0644), not owner-only.
+    import os
+    import stat
+    mod = _load()
+    out = tmp_path / "forward.sieve"
+    mod.write_script('require ["envelope"];\n', str(out))
+    mode = stat.S_IMODE(os.stat(out).st_mode)
+    assert mode & 0o044, f"forward.sieve not group/other readable: {oct(mode)}"

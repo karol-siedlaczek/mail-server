@@ -90,12 +90,34 @@ def write_script(text, out_path=SIEVE_OUT):
                     f"keeping previous: {r.stderr.strip()}")
                 return
         os.replace(tmp, out_path)
+        _grant_dovecot_access(out_path, d)
     finally:
         # remove the temp source and any .svbin sievec produced next to it
         base = tmp[:-len(".sieve")] if tmp.endswith(".sieve") else tmp
         for p in (tmp, base + ".svbin"):
             if os.path.exists(p):
                 os.unlink(p)
+
+
+# Dovecot runs Sieve as the vmail user (uid/gid 5000, pinned in the image). This
+# daemon runs as root, and tempfile.mkstemp creates 0600 root-owned files — which
+# vmail cannot read, so the global before-script silently fails to load and NO
+# forwarding happens. Hand ownership to vmail after each publish (dir too, so
+# Dovecot can also cache the compiled .svbin next to the source).
+VMAIL_UID = int(os.environ.get("VMAIL_UID", "5000"))
+VMAIL_GID = int(os.environ.get("VMAIL_GID", "5000"))
+
+
+def _grant_dovecot_access(script_path, script_dir):
+    for path, mode in ((script_dir, 0o755), (script_path, 0o644)):
+        try:
+            os.chown(path, VMAIL_UID, VMAIL_GID)
+        except OSError:
+            pass  # not root (e.g. unit tests) — best effort
+        try:
+            os.chmod(path, mode)
+        except OSError:
+            pass
 
 
 def _which(prog):
