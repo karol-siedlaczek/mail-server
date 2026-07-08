@@ -40,6 +40,9 @@ def test_sieve_before_conf_points_at_generated_script():
     assert "sieve_script" in text
     assert "type = before" in text
     assert "plugin {" not in text
+    # A fan-out alias can exceed Pigeonhole's default 4-redirect cap, which fails
+    # the whole script at compile time; the limit must be raised.
+    assert "sieve_max_redirects" in text
 
 def test_render_map_has_sieve_conf():
     rm = (REPO / "rootfs" / "tpl" / "render.map").read_text()
