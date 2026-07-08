@@ -76,6 +76,7 @@ over `/tpl/*.tpl`). Every `VAR` may instead be supplied as `VAR__FILE=/path`
 | `RSPAMD_CONTROLLER_PASSWORD` / `RSPAMD_CONTROLLER_PASSWORD__FILE` | no | — | When set, the Rspamd controller (web UI + API) binds `*:11334` (reachable by a reverse proxy / HAProxy on the network) and requires this password; plaintext is hashed at boot, or pass an `rspamadm pw` hash. Unset → controller stays `127.0.0.1:11334`. |
 | `DMARC_REPORT_ENABLED` | no | `false` | Send daily aggregate DMARC reports. |
 | `DMARC_REPORT_EMAIL` | no | — | From/contact for aggregate reports. |
+| `DMARC_REPORT_HOUR` | no | `3` | Hour (UTC, 0–23) at which the daily aggregate report run fires. Only relevant when `DMARC_REPORT_ENABLED=true`. |
 | `AUDIT_ENABLED` | no | `true` | Enable the `audit_logs` subsystem. |
 | `AUDIT_SCOPE` | no | `full` | `full` = auth + send + delivery. |
 | `POP3_ENABLED` | no | `false` | Expose POP3 110/995. |
