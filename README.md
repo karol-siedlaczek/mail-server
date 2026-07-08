@@ -81,6 +81,7 @@ over `/tpl/*.tpl`). Every `VAR` may instead be supplied as `VAR__FILE=/path`
 | `POP3_ENABLED` | no | `false` | Expose POP3 110/995. |
 | `POSTSCREEN_ENABLED` | no | `true` | postscreen on :25. |
 | `GREYLISTING_ENABLED` | no | `true` | Rspamd greylisting (unauthenticated only). |
+| `SIEVE_MAX_REDIRECTS` | no | `25` | Max `redirect` actions Sieve allows per script. Pigeonhole's default (4) is too low for fan-out aliases and, if exceeded, fails the whole generated forward script at compile time (disabling all forwarding). Raise for aliases with many destinations. |
 | `LOCAL_RESOLVER_ENABLED` | no | `true` | Run the in-container unbound resolver and point `/etc/resolv.conf` at it (so DNSBLs aren't queried via a public resolver). Set `false` to keep Docker's embedded DNS and supply your own recursor (see DNS resolver). |
 | `MAIL_BOOTSTRAP_DOMAIN` | no | — | First-boot: domain to seed (see Day 1). |
 | `MAIL_BOOTSTRAP_ADMIN` | no | — | First-boot: admin mailbox (must be `@` the domain). |

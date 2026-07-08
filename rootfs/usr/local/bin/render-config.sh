@@ -72,6 +72,10 @@ set_default GREYLISTING_ENABLED true
 # DNS and supply your own (e.g. a private recursor via compose `dns:`); when off
 # the unbound daemon stays down and /etc/resolv.conf is left untouched.
 set_default LOCAL_RESOLVER_ENABLED true
+# Max redirect actions Sieve allows per script (Pigeonhole default is 4, checked
+# at compile time against the whole generated forward script — too low for a
+# fan-out alias). Raise as needed for aliases with many destinations.
+set_default SIEVE_MAX_REDIRECTS 25
 # Audit DB creds fall back to the lookup-role creds when not given separately.
 set_default PG_AUDIT_USER       "${PG_USER:-}"
 set_default PG_AUDIT_PASSWORD   "${PG_PASSWORD:-}"
@@ -195,7 +199,8 @@ DUMP_VARS="MAIL_HOSTNAME SRS_DOMAIN PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWOR
   RELAYHOST RELAYHOST_USER RELAYHOST_PASSWORD PASSWORD_SCHEME \
   ALLOW_WEAK_SCHEMES MESSAGE_SIZE_LIMIT RSPAMD_REJECT_SCORE \
   DMARC_REPORT_ENABLED DMARC_REPORT_EMAIL AUDIT_ENABLED AUDIT_SCOPE \
-  POP3_ENABLED POSTSCREEN_ENABLED GREYLISTING_ENABLED MAIL_BOOTSTRAP_DOMAIN \
+  POP3_ENABLED POSTSCREEN_ENABLED GREYLISTING_ENABLED SIEVE_MAX_REDIRECTS \
+  MAIL_BOOTSTRAP_DOMAIN \
   MAIL_BOOTSTRAP_ADMIN MAIL_BOOTSTRAP_PASSWORD \
   DOVECOT_PASSWORD_SCHEME DOVECOT_AUTH_ALLOW_WEAK \
   DOVECOT_POP3_PROTOCOLS DOVECOT_POP3_SERVICES \

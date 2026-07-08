@@ -10,8 +10,9 @@
 # One alias can fan out to several destinations (e.g. a shared mailbox to 5
 # people). Pigeonhole's default cap is sieve_max_redirects = 4, checked at
 # COMPILE time against the whole script — exceed it and the ENTIRE generated
-# forward script fails to load, silently disabling all forwarding. Raise it.
-sieve_max_redirects = 25
+# forward script fails to load, silently disabling all forwarding. Configurable
+# via SIEVE_MAX_REDIRECTS (default 25).
+sieve_max_redirects = ${SIEVE_MAX_REDIRECTS}
 
 sieve_script personal {
   path = ~/sieve
