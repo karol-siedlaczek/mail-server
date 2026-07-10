@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# mail-release <destination> [file.eml]
+#
+# Manually release a FALSE POSITIVE from the Junk review queue: forward the
+# message to its intended external <destination> and teach Bayes it was ham.
+#
+# The message is re-injected STRAIGHT to the destination (not back to the local
+# mailbox), so the recipient's Sieve forward script never runs again and the
+# message cannot re-file itself into Junk (no loop). With no file argument the
+# message is read from stdin:
+#   docker exec -i mail-server mail-release karol@gmail.com < message.eml
+set -euo pipefail
+
+dest="${1:-}"
+if [ -z "$dest" ]; then
+  echo "usage: mail-release <destination> [file.eml]   (message on stdin if no file)" >&2
+  exit 2
+fi
+shift || true
+src="${1:-/dev/stdin}"
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+cat "$src" > "$tmp"
+
+# Deliver directly to the destination address. Envelope sender defaults to our
+# own postmaster so any bounce comes back to us, not the original spammer; it can
+# be overridden with MAIL_RELEASE_ENVELOPE_FROM.
+env_from="${MAIL_RELEASE_ENVELOPE_FROM:-postmaster@${MAIL_HOSTNAME:-localhost}}"
+sendmail -oi -f "$env_from" "$dest" < "$tmp"
+
+# It was a false positive → correct the classifier so the next one is not caught.
+rspamc_pw=()
+[ -n "${RSPAMD_CONTROLLER_PASSWORD:-}" ] && rspamc_pw=(-P "$RSPAMD_CONTROLLER_PASSWORD")
+rspamc "${rspamc_pw[@]}" learn_ham < "$tmp" || echo "warning: learn_ham failed" >&2
+
+echo "released to $dest and learned as ham" >&2

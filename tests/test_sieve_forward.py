@@ -17,15 +17,36 @@ def test_build_sieve_no_copy_forward():
     s = _load().build_sieve([("karol@siedlaczek.com.pl", "karol@gmail.com", False)])
     assert 'require ["envelope"' in s
     assert 'if envelope :is "to" "karol@siedlaczek.com.pl"' in s
-    assert 'if not header :contains "X-Spam" "Yes"' in s
     assert 'redirect "karol@gmail.com";' in s
-    assert "stop;" in s
     assert ":copy" not in s
+    # no-keep ham path ends in stop (spam branch + ham branch) → two stops.
+    assert s.count("stop;") == 2
 
-def test_build_sieve_keep_copy_uses_copy_and_no_stop():
+def test_build_sieve_spam_filed_to_junk_not_forwarded():
+    # Spam (rspamd added X-Spam: Yes) must be filed to the local Junk mailbox for
+    # review and NEVER forwarded — a `stop` before the redirect guarantees it.
+    s = _load().build_sieve([("karol@siedlaczek.com.pl", "karol@gmail.com", False)])
+    assert '"fileinto"' in s                       # extension required
+    assert 'if header :contains "X-Spam" "Yes"' in s
+    assert 'fileinto "Junk";' in s
+    junk_idx = s.index('fileinto "Junk";')
+    redir_idx = s.index('redirect "karol@gmail.com";')
+    assert junk_idx < redir_idx                    # Junk-filing comes first
+    assert s.index("stop;") < redir_idx            # and stops before the redirect
+
+def test_build_sieve_spam_junk_applies_even_with_keep_copy():
+    # Even a keep_copy forward must stop after filing spam to Junk, else spam
+    # would still be relayed by the redirect below.
+    s = _load().build_sieve([("a@ex.pl", "a@gmail.com", True)])
+    assert 'fileinto "Junk";' in s
+    assert s.count("stop;") == 1                    # only the spam-branch stop
+
+def test_build_sieve_keep_copy_uses_copy_and_no_ham_stop():
     s = _load().build_sieve([("a@ex.pl", "a@gmail.com", True)])
     assert 'redirect :copy "a@gmail.com";' in s
-    assert "stop;" not in s
+    # keep_copy → the redirect must not be followed by a stop (implicit keep
+    # survives). The only stop is in the spam branch.
+    assert s.count("stop;") == 1
 
 def test_build_sieve_multi_destination():
     s = _load().build_sieve([
@@ -51,7 +72,7 @@ def test_build_sieve_mixed_keep_copy_promotes_all_to_copy():
     assert 'redirect :copy "one@gmail.com";' in s
     assert 'redirect :copy "two@out.com";' in s
     assert 'redirect "one@gmail.com";' not in s   # no bare (non-copy) redirect
-    assert "stop;" not in s
+    assert s.count("stop;") == 1                   # only the spam-branch stop
 
 def test_build_sieve_empty_is_valid_noop():
     s = _load().build_sieve([])

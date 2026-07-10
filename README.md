@@ -362,9 +362,57 @@ docker compose exec mail-server ls -l /var/vmail/example.com/alice/Maildir/{new,
 
 The mailbox directory is created on the user's first login or first local
 delivery. Note (with Sieve forwarding enabled): a message forwarded with
-`keep_copy=false` leaves no local copy, but mail marked spam is never forwarded
-and lands locally instead — so a forward-only mailbox still accumulates spam
-(check `Junk`).
+`keep_copy=false` leaves no local copy, but mail marked spam is **never
+forwarded** — it is filed into the local `Junk` mailbox instead (see
+[Spam filtering & training](#spam-filtering--training)), so a forward-only
+mailbox still accumulates a reviewable spam queue there.
+
+### Spam filtering & training
+
+Rspamd scores every inbound message; at score ≥ `add_header` (6) it stamps
+`X-Spam: Yes`. The Sieve forward script keys on that header: clean mail is
+redirected to the external destination, **spam is filed to the recipient's
+`Junk` mailbox and never relayed** (this protects the server's sending
+reputation — forwarding spam gets the whole IP rate-limited by Gmail et al.).
+
+Two learning systems raise detection of mail that stock rules miss (a
+technically compliant bulk sender can score below 6 and slip through):
+
+- **Bayes** (`classifier-bayes.conf`) — statistical, learns vocabulary. Autolearn
+  is conservative (`[-2, 12]`: ham below −2, spam above 12); the murky middle
+  must be taught by hand. It emits no verdict until ~50 messages of each class
+  are learned, so it is a slow-burn generalizer, not a day-one fix.
+- **Fuzzy** (`fuzzy_check.conf`) — content fingerprints. The public `rspamd.com`
+  feed (stock, read-only) catches global campaigns immediately; a private local
+  store catches re-sends of campaigns you teach it. Fuzzy is the immediate win —
+  one `mail-learn-spam` and near-duplicate re-sends are caught at once.
+
+**Review the Junk queue** over IMAP, or server-side:
+
+```bash
+docker compose exec mail-server doveadm fetch -u karol@example.com \
+  "date.received hdr.from hdr.subject" mailbox Junk all
+```
+
+**Training helpers** (bundled in the image). Feed them a raw `.eml` — from
+Gmail use *Show original → Download original*. Over SSH the same command is
+`ssh worker-01 'docker exec -i mail-server <helper>' < message.eml`.
+
+```bash
+# Teach that a message is spam (Bayes learn + local fuzzy fingerprint):
+docker exec -i mail-server mail-learn-spam < message.eml
+
+# Correct a false positive found in Junk (Bayes ham; no fuzzy on good mail):
+docker exec -i mail-server mail-learn-ham < message.eml
+
+# Release a false positive from Junk: forward it to its real destination
+# (bypasses the Sieve gate, so it won't loop back to Junk) and learn it as ham:
+docker exec -i mail-server mail-release karol@gmail.com < message.eml
+```
+
+`mail-learn-spam` also accepts file arguments (`mail-learn-spam /path/*.eml`) for
+bulk seeding. All three authenticate to the Rspamd controller automatically when
+`RSPAMD_CONTROLLER_PASSWORD` is set.
 
 ## Day 1: Bootstrap
 

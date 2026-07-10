@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# mail-learn-spam [file.eml ...]
+#
+# Teach rspamd that message(s) are SPAM: learn them into the Bayes classifier AND
+# add a fuzzy fingerprint to the local fuzzy storage. Look-alike / re-sent mail
+# then scores higher, crosses add_header=6, gets X-Spam: Yes, and is filed to the
+# Junk mailbox instead of being forwarded externally.
+#
+# With no file arguments, reads ONE message from stdin. Examples:
+#   docker exec -i mail-server mail-learn-spam < message.eml
+#   ssh worker-01 'docker exec -i mail-server mail-learn-spam' < message.eml
+#   docker exec mail-server mail-learn-spam /var/spool/spam/*.eml
+set -euo pipefail
+
+# rspamc talks to the controller on localhost:11334. When a controller password
+# is configured, authenticate with its plaintext (rspamd compares against the
+# hash render-config stored); otherwise the localhost controller needs none.
+rspamc_pw=()
+[ -n "${RSPAMD_CONTROLLER_PASSWORD:-}" ] && rspamc_pw=(-P "$RSPAMD_CONTROLLER_PASSWORD")
+
+# Fuzzy flag 1 = spam/deny (matches the "local" rule in fuzzy_check.conf); weight
+# governs how strongly a stored hash counts on a later match.
+FUZZY_FLAG="${MAIL_FUZZY_FLAG:-1}"
+FUZZY_WEIGHT="${MAIL_FUZZY_WEIGHT:-10}"
+
+learn_file() {
+  local f="$1"
+  rspamc "${rspamc_pw[@]}" learn_spam < "$f"
+  rspamc "${rspamc_pw[@]}" fuzzy_add -f "$FUZZY_FLAG" -w "$FUZZY_WEIGHT" < "$f"
+}
+
+if [ "$#" -gt 0 ]; then
+  for f in "$@"; do learn_file "$f"; done
+else
+  tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' EXIT
+  cat > "$tmp"          # buffer stdin so both rspamc calls see the whole message
+  learn_file "$tmp"
+fi
+
+echo "learned as spam + fuzzy-added" >&2

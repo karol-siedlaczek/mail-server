@@ -98,6 +98,33 @@ def test_redis_acl_username(tmp_path):
     assert 'password = "secretredis";' in t
 
 
+def test_bayes_classifier(rendered):
+    t = read(rendered, "classifier-bayes.conf")
+    assert 'backend = "redis";' in t
+    # Conservative autolearn: ham < -2, spam > 12. The neutral band (where
+    # "clean" compliant-sender spam lands, e.g. -0.7) is never auto-learned, so
+    # autolearn only reinforces obvious verdicts and can't be poisoned.
+    assert "autolearn = [-2, 12];" in t
+    # Emit BAYES_* symbols sooner than the stock 200-per-class on a low-volume box.
+    assert "min_learns = 50;" in t
+
+
+def test_fuzzy_check_local_rule(rendered):
+    t = read(rendered, "fuzzy_check.conf")
+    # A private, writable fuzzy store fed by the mail-learn-spam helper. The
+    # public rspamd.com feed is rspamd's stock read-only rule, left untouched.
+    assert 'servers = "127.0.0.1:11335";' in t
+    assert "read_only = false;" in t
+    # Reuse the well-scored FUZZY_DENIED symbol so local hits carry a real weight.
+    assert "FUZZY_DENIED" in t
+
+
+def test_fuzzy_worker(rendered):
+    t = read(rendered, "worker-fuzzy.inc")
+    assert 'bind_socket = "127.0.0.1:11335";' in t
+    assert 'backend = "redis";' in t
+
+
 def test_spf(rendered):
     t = read(rendered, "spf.conf")
     assert "spf" in t.lower()

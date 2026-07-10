@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# mail-learn-ham [file.eml ...]
+#
+# Teach rspamd that message(s) are HAM (legitimate) — e.g. a false positive found
+# in the Junk review queue. Learns into the Bayes classifier only (no fuzzy: we
+# never want to fingerprint good mail). With no file arguments, reads ONE message
+# from stdin:
+#   docker exec -i mail-server mail-learn-ham < message.eml
+set -euo pipefail
+
+rspamc_pw=()
+[ -n "${RSPAMD_CONTROLLER_PASSWORD:-}" ] && rspamc_pw=(-P "$RSPAMD_CONTROLLER_PASSWORD")
+
+if [ "$#" -gt 0 ]; then
+  for f in "$@"; do rspamc "${rspamc_pw[@]}" learn_ham < "$f"; done
+else
+  rspamc "${rspamc_pw[@]}" learn_ham
+fi
+
+echo "learned as ham" >&2
