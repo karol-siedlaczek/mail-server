@@ -115,8 +115,15 @@ def test_fuzzy_check_local_rule(rendered):
     # public rspamd.com feed is rspamd's stock read-only rule, left untouched.
     assert 'servers = "127.0.0.1:11335";' in t
     assert "read_only = false;" in t
-    # Reuse the well-scored FUZZY_DENIED symbol so local hits carry a real weight.
-    assert "FUZZY_DENIED" in t
+    # The fuzzy_map entry uses a DISTINCT symbol (not the stock FUZZY_DENIED,
+    # which would collide — verified clean by rspamadm configtest).
+    assert "LOCAL_FUZZY_DENIED {" in t
+
+
+def test_fuzzy_group_scores_local_symbol(rendered):
+    t = read(rendered, "fuzzy_group.conf")
+    assert "LOCAL_FUZZY_DENIED" in t
+    assert "weight = 12.0;" in t
 
 
 def test_fuzzy_worker(rendered):
