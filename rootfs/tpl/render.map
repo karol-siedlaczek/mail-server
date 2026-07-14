@@ -34,6 +34,7 @@ tpl/dovecot/15-lmtp.conf.tpl                    /etc/dovecot/conf.d/20-lmtp.conf
 tpl/dovecot/20-managesieve.conf.tpl             /etc/dovecot/conf.d/20-managesieve.conf
 tpl/dovecot/90-quota.conf.tpl                   /etc/dovecot/conf.d/90-quota.conf
 tpl/dovecot/95-sieve.conf.tpl                   /etc/dovecot/conf.d/95-sieve.conf
+tpl/dovecot/96-imapsieve.conf.tpl               /etc/dovecot/conf.d/96-imapsieve.conf
 #
 # ── rspamd (phase G) ─────────────────────────────────────────────────────────
 # tpl/rspamd/local.d/worker-proxy.inc.tpl         /etc/rspamd/local.d/worker-proxy.inc

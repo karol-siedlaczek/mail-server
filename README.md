@@ -414,6 +414,31 @@ docker exec -i mail-server mail-release karol@gmail.com < message.eml
 bulk seeding. All three authenticate to the Rspamd controller automatically when
 `RSPAMD_CONTROLLER_PASSWORD` is set.
 
+**Cheat-sheet — which action, when:**
+
+| Situation | Do this | What it teaches |
+|---|---|---|
+| Spam slipped through (was forwarded) | `mail-learn-spam < msg.eml` | Bayes **spam** + local **fuzzy** fingerprint |
+| Legit mail landed in `Junk`, you still want it | `mail-release <dest> < msg.eml` | forwards it out **and** Bayes **ham** |
+| Legit mail in `Junk`, no need to forward | `mail-learn-ham < msg.eml` | Bayes **ham** only |
+| Bulk-seed a spam folder | `mail-learn-spam /path/*.eml` | as above, per file |
+
+> ⚠️ **Moving a message in/out of `Junk` in an IMAP client does NOT train Bayes.**
+> There is no learn-on-move here (by design — mail is read on the forwarding
+> destination, not this server). Training happens **only** when a message goes
+> through one of the helpers above.
+
+Notes:
+- Correcting a false positive teaches Bayes for **future** similar mail; it does
+  not retroactively re-file other messages.
+- `mail-release`/`mail-learn-ham` do `learn_ham` only — they do **not** remove a
+  fuzzy fingerprint. If a message was previously `mail-learn-spam`'d and later
+  proves legit, also run `rspamc fuzzy_del` to drop its hash.
+- Bayes needs **both** classes and ~50 learns each before it emits any
+  `BAYES_*` symbol, so train ham as diligently as spam. Health check:
+  `rspamc stat` — keep `BAYES_SPAM` and `BAYES_HAM` `learned:` counts in the same
+  ballpark; a lopsided model biases toward false positives.
+
 ## Day 1: Bootstrap
 
 The appliance is usable before `mail-controller` exists. On first boot, if

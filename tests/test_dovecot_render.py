@@ -200,6 +200,9 @@ DOVECOT_CONFD_TEMPLATES = [
     "15-lmtp.conf.tpl",
     "90-quota.conf.tpl",
     "20-managesieve.conf.tpl",
+    # 96-imapsieve depends on 10-mail's Junk mailbox; parsed together here so the
+    # fragile Pigeonhole 2.4 imapsieve block syntax is validated by doveconf -n.
+    "96-imapsieve.conf.tpl",
 ]
 
 DOVECOT_TEMPLATES = ["auth-sql.conf.tpl"] + DOVECOT_CONFD_TEMPLATES
@@ -245,3 +248,38 @@ def test_doveconf_n_parses_rendered_config(render_dovecot, tmp_path):
     # it when it equals the compiled-in default, so we verify the SSL block
     # is present instead (cert/key are always non-default).
     assert "ssl_server" in proc.stdout or "ssl_min_protocol" in proc.stdout
+
+
+# ── F.9: 96-imapsieve.conf ───────────────────────────────────────────────────
+
+def test_imapsieve_enables_imap_sieve(render_dovecot):
+    out = render_dovecot("96-imapsieve.conf.tpl")
+    assert "protocol imap {" in out
+    assert "imap_sieve = yes" in out
+    assert "sieve_plugins = sieve_imapsieve sieve_extprograms" in out
+    assert "sieve_pipe_bin_dir = /usr/lib/dovecot/sieve" in out
+
+
+def test_imapsieve_junk_rules(render_dovecot):
+    out = render_dovecot("96-imapsieve.conf.tpl")
+    # Dovecot 2.4.1 block form (verified with doveconf -n). INTO Junk -> spam:
+    assert "mailbox Junk {" in out
+    assert "sieve_script report-spam {" in out
+    assert "path = /etc/dovecot/sieve/report-spam.sieve" in out
+    # OUT of Junk -> ham (imapsieve_from block):
+    assert "imapsieve_from Junk {" in out
+    assert "sieve_script report-ham {" in out
+    assert "path = /etc/dovecot/sieve/report-ham.sieve" in out
+    # before-type; spam rule also catches direct APPEND into Junk
+    assert "type = before" in out
+    assert "cause = copy append" in out
+    # the 2.3 numbered settings must be gone (rejected by 2.4 doveconf)
+    assert "imapsieve_mailbox1_name" not in out
+
+
+def test_render_map_has_imapsieve_conf():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[1]
+    rm = (repo / "rootfs" / "tpl" / "render.map").read_text()
+    assert "tpl/dovecot/96-imapsieve.conf.tpl" in rm
+    assert "/etc/dovecot/conf.d/96-imapsieve.conf" in rm

@@ -254,3 +254,7 @@ def test_controller_exposed_with_password(tmp_path):
     assert 'bind_socket = "*:11334";' in t
     assert 'password = "$2$abc123$deadbeefcafe";' in t
     assert 'enable_password = "$2$abc123$deadbeefcafe";' in t
+    # Local (loopback) requests are trusted for enable-level commands (learn_*),
+    # so the Sieve learn-on-move wrapper needs no password; remote still does.
+    assert 'secure_ip = "127.0.0.1";' in t
+    assert 'secure_ip = "::1";' in t

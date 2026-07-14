@@ -107,6 +107,11 @@ COPY rootfs/ /
 COPY sql/ /sql/
 RUN set -eux; \
     chmod +x /usr/local/bin/*.sh /usr/local/bin/* 2>/dev/null || true; \
+    chmod +x /usr/lib/dovecot/sieve/*.sh 2>/dev/null || true; \
+    # imap_sieve runs the global report scripts as the vmail user; let it cache
+    # the compiled .svbin next to them (otherwise Pigeonhole recompiles in memory
+    # on every Junk move and logs a warning each time).
+    chown vmail:vmail /etc/dovecot/sieve 2>/dev/null || true; \
     # s6-rc run/up scripts must be executable.
     find /etc/s6-overlay/s6-rc.d -type f \( -name run -o -name up -o -name finish \) -exec chmod +x {} +
 

@@ -571,6 +571,10 @@ if [ -n "$_cpw" ]; then
             printf 'bind_socket = "*:11334";\n'
             printf 'password = "%s";\n' "$_chash"
             printf 'enable_password = "%s";\n' "$_chash"
+            # Trust loopback for enable-level commands (Sieve learn-on-move runs
+            # `rspamc learn_*` locally); HAProxy/remote still needs the password.
+            printf 'secure_ip = "127.0.0.1";\n'
+            printf 'secure_ip = "::1";\n'
         } > "$_ctrl"
         log "rspamd controller: bound *:11334 with password (HAProxy backend)"
     else
