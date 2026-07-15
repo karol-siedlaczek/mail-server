@@ -26,7 +26,7 @@ def build_sieve(rows):
         entry["dests"].append(dest)
         entry["keep"] = entry["keep"] or bool(keep_copy)
 
-    lines = ['require ["envelope", "fileinto", "copy"];', "", HEADER.rstrip("\n")]
+    lines = ['require ["envelope", "fileinto", "copy", "mailbox"];', "", HEADER.rstrip("\n")]
     for source in sorted(by_source):
         entry = by_source[source]
         keep = entry["keep"]
@@ -38,10 +38,14 @@ def build_sieve(rows):
         # Spam that rspamd marked (X-Spam: Yes) is filed to the local Junk mailbox
         # and NOT forwarded. `fileinto` cancels the implicit keep (so no INBOX
         # copy) and `stop` short-circuits before the redirect below — so spam is
-        # never relayed, regardless of keep_copy. Operators review Junk over IMAP
-        # and use mail-release to forward a false positive by hand.
+        # never relayed, regardless of keep_copy. `:create` (mailbox extension)
+        # makes it robust even if Junk does not exist yet — e.g. spam arrives
+        # before the user's first login triggers dovecot's `auto = subscribe`;
+        # without it fileinto would fail and the message fall back to INBOX.
+        # Operators review Junk over IMAP and use mail-release to forward a false
+        # positive by hand.
         lines.append('  if header :contains "X-Spam" "Yes" {')
-        lines.append('    fileinto "Junk";')
+        lines.append('    fileinto :create "Junk";')
         lines.append("    stop;")
         lines.append("  }")
         for dest in entry["dests"]:

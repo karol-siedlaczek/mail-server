@@ -128,6 +128,24 @@ def test_mail_location_maildir(render_dovecot):
     assert "first_valid_uid = 5000" in out
 
 
+def test_special_use_mailboxes_autocreated_and_subscribed(render_dovecot):
+    out = render_dovecot("10-mail.conf.tpl")
+    # Every standard special-use folder must be auto-created AND subscribed so it
+    # exists server-side and shows up in IMAP/webmail folder lists (SnappyMail only
+    # lists subscribed folders). Without `auto`, the Junk mailbox never exists and
+    # the spam-gating `fileinto :create "Junk"` had to carry it alone — and Sent/
+    # Drafts/Trash/Archive never appear in the system-folder mapping.
+    for su in ("\\Drafts", "\\Junk", "\\Sent", "\\Trash", "\\Archive"):
+        assert su in out, f"missing special_use {su}"
+    # Archive is a standard folder webmail clients expect; declare it too.
+    assert "mailbox Archive {" in out
+    # auto = subscribe (create + subscribe) on each of the 5 special-use folders.
+    # Count active directive lines only (a comment may mention the string too).
+    auto_lines = [ln for ln in out.splitlines()
+                  if ln.strip() == "auto = subscribe" and not ln.lstrip().startswith("#")]
+    assert len(auto_lines) == 5
+
+
 # ── F.4: 10-ssl.conf ──────────────────────────────────────────────────────────
 
 def test_ssl_cert_key_and_min_protocol(render_dovecot):

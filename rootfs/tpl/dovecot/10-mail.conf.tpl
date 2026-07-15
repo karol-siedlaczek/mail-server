@@ -13,19 +13,32 @@ mail_gid = 5000
 first_valid_uid = 5000
 last_valid_uid = 5000
 
-# Standard special-use mailboxes auto-created on first login.
+# Standard special-use mailboxes. `auto = subscribe` both CREATES the folder and
+# SUBSCRIBES it on the user's first mailbox access, so it exists server-side and
+# shows up in clients that only list subscribed folders (SnappyMail). Without it
+# the Junk folder never exists and the spam-gating `fileinto :create "Junk"` in
+# the forward script had to create it on the fly; here we also give Sent/Drafts/
+# Trash/Archive so they populate the webmail system-folder mapping.
 namespace inbox {
   inbox = yes
   mailbox Drafts {
     special_use = \Drafts
+    auto = subscribe
   }
   mailbox Junk {
     special_use = \Junk
+    auto = subscribe
   }
   mailbox Sent {
     special_use = \Sent
+    auto = subscribe
   }
   mailbox Trash {
     special_use = \Trash
+    auto = subscribe
+  }
+  mailbox Archive {
+    special_use = \Archive
+    auto = subscribe
   }
 }

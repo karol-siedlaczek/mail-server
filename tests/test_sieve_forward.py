@@ -27,9 +27,12 @@ def test_build_sieve_spam_filed_to_junk_not_forwarded():
     # review and NEVER forwarded — a `stop` before the redirect guarantees it.
     s = _load().build_sieve([("karol@siedlaczek.com.pl", "karol@gmail.com", False)])
     assert '"fileinto"' in s                       # extension required
+    assert '"mailbox"' in s                         # `:create` needs the mailbox ext
     assert 'if header :contains "X-Spam" "Yes"' in s
-    assert 'fileinto "Junk";' in s
-    junk_idx = s.index('fileinto "Junk";')
+    # `:create` so spam is filed even if Junk does not exist yet (e.g. mail
+    # arrives before the user's first login auto-creates the folder).
+    assert 'fileinto :create "Junk";' in s
+    junk_idx = s.index('fileinto :create "Junk";')
     redir_idx = s.index('redirect "karol@gmail.com";')
     assert junk_idx < redir_idx                    # Junk-filing comes first
     assert s.index("stop;") < redir_idx            # and stops before the redirect
@@ -38,7 +41,7 @@ def test_build_sieve_spam_junk_applies_even_with_keep_copy():
     # Even a keep_copy forward must stop after filing spam to Junk, else spam
     # would still be relayed by the redirect below.
     s = _load().build_sieve([("a@ex.pl", "a@gmail.com", True)])
-    assert 'fileinto "Junk";' in s
+    assert 'fileinto :create "Junk";' in s
     assert s.count("stop;") == 1                    # only the spam-branch stop
 
 def test_build_sieve_keep_copy_uses_copy_and_no_ham_stop():
