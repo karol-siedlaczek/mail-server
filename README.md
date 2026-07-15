@@ -204,8 +204,10 @@ psql "$DBURL" -f sql/schema.sql
 psql "$DBURL" <<'SQL'
 CREATE ROLE "mail-server-ro_user"    LOGIN PASSWORD '...';
 CREATE ROLE "mail-server-audit_user" LOGIN PASSWORD '...';
-GRANT "mail-server-ro"    TO "mail-server-ro_user";
+CREATE ROLE "mail-server-webmail_user" LOGIN PASSWORD '...'; # Optional if mail-webmail will be present
+GRANT "mail-server-ro"    TO "mail-server-ro_user"; 
 GRANT "mail-server-audit" TO "mail-server-audit_user";
+GRANT "mail-server-chpasswd" to "mail-server-webmail_user"
 SQL
 ```
 

@@ -131,3 +131,19 @@ GRANT SELECT ON audit_logs TO "mail-server-admin";
 GRANT USAGE, SELECT ON SEQUENCE
   domains_id_seq, users_id_seq, forwardings_id_seq, sender_login_maps_id_seq
   TO "mail-server-admin";
+
+-- mail-server-chpasswd: password self-service role used by the webmail image
+-- (mail-webmail). Users may ONLY change their own password. Column-level:
+-- UPDATE(password) plus SELECT on the columns the WHERE clause reads (Postgres
+-- requires SELECT on any column referenced in WHERE).
+-- NOLOGIN group role; the operator GRANTs it to the actual chpasswd login role.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mail-server-chpasswd') THEN
+    CREATE ROLE "mail-server-chpasswd" NOLOGIN;
+  END IF;
+END
+$$;
+
+GRANT SELECT (email, active), UPDATE (password) ON users TO "mail-server-chpasswd";
+
