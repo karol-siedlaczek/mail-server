@@ -23,6 +23,22 @@ companion image; this image ships only a non-interactive first-boot bootstrap se
 | 110  | POP3 (STARTTLS) — only if `POP3_ENABLED` |
 | 995  | POP3 (implicit TLS) — only if `POP3_ENABLED` |
 
+## Contents
+
+- [Architecture](#architecture)
+- [Environment variables](#environment-variables)
+- [Persistent volumes](#persistent-volumes)
+- [Usage (docker compose)](#usage-docker-compose)
+- [Database setup](#database-setup)
+- [DNS & delivery prerequisites](#dns--delivery-prerequisites)
+- [Operations](#operations)
+  - [DKIM keys](#dkim-keys)
+  - [DNS resolver](#dns-resolver)
+  - [Reading a mailbox](#reading-a-mailbox)
+  - [Spam filtering & training](#spam-filtering--training)
+- [Day 1: Bootstrap](#day-1-bootstrap)
+- [Publishing](#publishing)
+
 ## Architecture
 
 - **Postfix** — MTA. `postscreen` on :25, Rspamd milter on all paths, Dovecot
