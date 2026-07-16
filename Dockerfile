@@ -8,9 +8,10 @@ ARG APP_VERSION=unknown
 # s6-overlay v3 release (https://github.com/just-containers/s6-overlay/releases).
 # Pinned for reproducible PID1 supervision; SHADOW digests are checked below.
 ARG S6_OVERLAY_VERSION=3.2.0.2
-# Rspamd is pinned to a known-good release: rspamd >=3.13 has SIGILL'd on the
-# SVE2 codepath on some ARMv8 CPUs — verify on the actual arm64 target.
-ARG RSPAMD_VERSION=3.11.1
+# Rspamd is pinned to a known-good release for reproducible builds. History:
+# rspamd >=3.13 SIGILL'd on the SVE2 codepath on some ARMv8 CPUs; 4.1.1 is
+# verified working on the arm64 target. Bump only after testing on real arm64.
+ARG RSPAMD_VERSION=4.1.1
 
 LABEL org.opencontainers.image.version="${APP_VERSION}"
 LABEL org.opencontainers.image.description="Mail server appliance: Postfix + Dovecot 2.4 + Rspamd + postsrsd, Postgres/Redis-backed, s6-overlay supervised."
@@ -41,6 +42,11 @@ RUN set -eux; \
 
 # ── Base packages + APT repos (Rspamd from the official repo, which ships arm64) ──
 RUN set -eux; \
+    # Flaky mirrors (notably rspamd.com) stall mid-download and time out after
+    # minutes; bound each attempt and retry so a dropped connection doesn't fail
+    # the whole build.
+    printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' \
+        > /etc/apt/apt.conf.d/80-retries; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         ca-certificates curl gnupg lsb-release apt-transport-https xz-utils \
@@ -52,6 +58,10 @@ RUN set -eux; \
     CODENAME="$(lsb_release -cs)"; \
     echo "deb [signed-by=/etc/apt/keyrings/rspamd.gpg] http://rspamd.com/apt-stable/ ${CODENAME} main" \
         > /etc/apt/sources.list.d/rspamd.list; \
+    # Pin rspamd to RSPAMD_VERSION (glob covers the ~githash~codename deb suffix).
+    # Priority 1001 forces this version even if the repo later offers a newer one.
+    printf 'Package: rspamd\nPin: version %s*\nPin-Priority: 1001\n' "${RSPAMD_VERSION}" \
+        > /etc/apt/preferences.d/rspamd; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         postfix postfix-pgsql \
