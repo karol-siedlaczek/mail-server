@@ -80,7 +80,13 @@ smtpd_client_connection_rate_limit = 30
 smtpd_client_message_rate_limit = 100
 smtpd_client_recipient_rate_limit = 100
 smtpd_client_event_limit_exceptions = $mynetworks
+
+# ── Smarthost relay ──────────────────────────────────────────────────────────
+# Optional outbound smarthost. When RELAYHOST_USER is set, render-config fills
+# POSTFIX_RELAYHOST_SASL with the SASL client directives below; otherwise it is
+# empty and Postfix relays (or sends directly) without authenticating.
 relayhost = ${RELAYHOST}
+${POSTFIX_RELAYHOST_SASL}
 
 # ── TLS hardening (Phase K) ─────────────────────────────────────────────────
 # Floor every TLS handshake at TLSv1.2; refuse SSLv2/3 + TLS1.0/1.1. Prefer

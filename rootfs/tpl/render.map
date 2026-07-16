@@ -36,16 +36,13 @@ tpl/dovecot/90-quota.conf.tpl                   /etc/dovecot/conf.d/90-quota.con
 tpl/dovecot/95-sieve.conf.tpl                   /etc/dovecot/conf.d/95-sieve.conf
 tpl/dovecot/96-imapsieve.conf.tpl               /etc/dovecot/conf.d/96-imapsieve.conf
 #
-# ── rspamd (phase G) ─────────────────────────────────────────────────────────
-# tpl/rspamd/local.d/worker-proxy.inc.tpl         /etc/rspamd/local.d/worker-proxy.inc
-# tpl/rspamd/local.d/dkim_signing.conf.tpl        /etc/rspamd/local.d/dkim_signing.conf
-# tpl/rspamd/local.d/dmarc.conf.tpl               /etc/rspamd/local.d/dmarc.conf
-# tpl/rspamd/local.d/arc.conf.tpl                 /etc/rspamd/local.d/arc.conf
-# tpl/rspamd/local.d/actions.conf.tpl             /etc/rspamd/local.d/actions.conf
-# tpl/rspamd/local.d/redis.conf.tpl               /etc/rspamd/local.d/redis.conf
-# tpl/rspamd/local.d/greylist.conf.tpl            /etc/rspamd/local.d/greylist.conf
-# tpl/rspamd/local.d/ratelimit.conf.tpl           /etc/rspamd/local.d/ratelimit.conf
-# tpl/rspamd/local.d/antivirus.conf.tpl           /etc/rspamd/local.d/antivirus.conf
+# ── rspamd ───────────────────────────────────────────────────────────────────
+# NOT listed here on purpose. Every tpl/rspamd/local.d/*.tpl is rendered by a
+# dedicated loop in render-config.sh (see "── Rspamd ──"), which also applies the
+# CLAMAV/GREYLISTING gates, the controller-bind logic, and the DKIM selector/path
+# maps from Postgres. Adding them here too would render them twice.
 #
-# ── postsrsd (phase E) ───────────────────────────────────────────────────────
-# tpl/postsrsd.conf.tpl                           /etc/postsrsd.conf
+# ── postsrsd ───────────────────────────────────────────────────────────────────
+# NOT templated. postsrsd 1.x takes its domain via the `-d ${SRS_DOMAIN}` flag in
+# its s6 run script (render-config derives SRS_DOMAIN); there is no config file to
+# render.

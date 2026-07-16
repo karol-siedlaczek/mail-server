@@ -55,6 +55,7 @@ RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         postfix postfix-pgsql \
+        libsasl2-modules \
         dovecot-core dovecot-imapd dovecot-lmtpd dovecot-managesieved \
         dovecot-sieve dovecot-pgsql dovecot-pop3d \
         rspamd \
@@ -119,7 +120,8 @@ RUN set -eux; \
 VOLUME ["/var/vmail", "/var/spool/postfix", "/var/lib/dovecot", "/var/lib/rspamd"]
 
 # 25 smtp(MX) · 465 smtps · 587 submission · 143 imap · 993 imaps · 4190 sieve
-EXPOSE 25 465 587 143 993 4190
+# · 110/995 pop3/pop3s (only served when POP3_ENABLED=true)
+EXPOSE 25 465 587 143 993 4190 110 995
 
 # Aggregate liveness: postfix + dovecot + rspamd (+ redis if configured).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \

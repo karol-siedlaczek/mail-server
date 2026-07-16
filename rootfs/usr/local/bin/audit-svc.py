@@ -28,6 +28,23 @@ LISTEN_HOST = os.environ.get("AUDIT_LISTEN_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.environ.get("AUDIT_LISTEN_PORT", "4001"))
 MAIL_HOST = os.environ.get("MAIL_HOSTNAME", "")
 
+# The three event kinds this service records, matching the *_insert.sql files.
+_ALL_KINDS = ("auth", "send", "delivery")
+
+
+def parse_scope(raw):
+    """Map the AUDIT_SCOPE env var -> frozenset of enabled event kinds.
+
+    'full'/'all'/empty -> all three (auth, send, delivery). Otherwise a
+    comma- or space-separated subset, e.g. 'auth' or 'auth,delivery'. Unknown
+    tokens are ignored, and if nothing valid is named we fall back to the full
+    set — auditing fails OPEN (records more), never silently nothing."""
+    raw = (raw or "").strip().lower()
+    if raw in ("", "full", "all"):
+        return frozenset(_ALL_KINDS)
+    kinds = frozenset(t for t in re.split(r"[,\s]+", raw) if t in _ALL_KINDS)
+    return kinds or frozenset(_ALL_KINDS)
+
 
 def parse_auth_report(report):
     """Map a Dovecot auth-policy JSON report -> named params for auth_insert.sql."""
@@ -177,8 +194,10 @@ def _connect():
 class _Writer:
     """Serialise INSERTs; reconnect on failure so a DB blip never kills audit."""
 
-    def __init__(self, sql):
+    def __init__(self, sql, scopes=None):
         self.sql = sql
+        # Which event kinds to actually record (AUDIT_SCOPE). Default: all.
+        self.scopes = scopes if scopes is not None else frozenset(_ALL_KINDS)
         self.lock = threading.Lock()
         self.conn = None
 
@@ -189,6 +208,9 @@ class _Writer:
         return self.conn
 
     def write(self, kind, params):
+        # AUDIT_SCOPE gate: drop kinds not in scope before touching the DB.
+        if kind not in self.scopes:
+            return
         with self.lock:
             try:
                 with self._conn().cursor() as cur:
@@ -233,12 +255,13 @@ def _tail_log(writer):
 
 def main():
     sql = _load_sql()
-    writer = _Writer(sql)
+    scopes = parse_scope(os.environ.get("AUDIT_SCOPE"))
+    writer = _Writer(sql, scopes)
     httpd = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), _make_handler(writer))
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
-    sys.stderr.write("audit-svc: listening on %s:%d, tailing maillog\n"
-                     % (LISTEN_HOST, LISTEN_PORT))
+    sys.stderr.write("audit-svc: listening on %s:%d, tailing maillog (scope=%s)\n"
+                     % (LISTEN_HOST, LISTEN_PORT, ",".join(sorted(scopes))))
     _tail_log(writer)
 
 

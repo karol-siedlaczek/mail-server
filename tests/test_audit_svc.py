@@ -153,3 +153,35 @@ def test_flush_queue_delivery_event_no_sasl():
 def test_flush_queue_unknown_qid_returns_none():
     c = audit_svc.Correlator(host="mail.example.test")
     assert c.flush_queue("NOPE") is None
+
+
+# parse_scope (AUDIT_SCOPE)
+def test_parse_scope_full_and_aliases():
+    full = frozenset(("auth", "send", "delivery"))
+    assert audit_svc.parse_scope("full") == full
+    assert audit_svc.parse_scope("all") == full
+    assert audit_svc.parse_scope("") == full
+    assert audit_svc.parse_scope(None) == full
+    assert audit_svc.parse_scope("  FULL  ") == full
+
+
+def test_parse_scope_subset():
+    assert audit_svc.parse_scope("auth") == frozenset(("auth",))
+    assert audit_svc.parse_scope("auth,delivery") == frozenset(("auth", "delivery"))
+    assert audit_svc.parse_scope("send delivery") == frozenset(("send", "delivery"))
+
+
+def test_parse_scope_unknown_tokens_fall_back_to_full():
+    # Nothing valid named -> fail open (record everything), never silently nothing.
+    assert audit_svc.parse_scope("bogus") == frozenset(("auth", "send", "delivery"))
+    # Valid tokens survive; unknown ones are dropped.
+    assert audit_svc.parse_scope("auth,bogus") == frozenset(("auth",))
+
+
+def test_writer_skips_out_of_scope_kind_without_db():
+    # A kind not in scope must return before any DB connection is attempted;
+    # sql={} would KeyError and _connect() would fail if it went further.
+    w = audit_svc._Writer(sql={}, scopes=frozenset(("auth",)))
+    w.write("send", {"queue_id": "X"})       # out of scope -> no-op, no raise
+    w.write("delivery", {"queue_id": "Y"})   # out of scope -> no-op, no raise
+    assert w.conn is None

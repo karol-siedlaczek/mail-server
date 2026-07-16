@@ -158,6 +158,27 @@ else
 fi
 export TLS_CHAIN_FILE POSTFIX_TLS_CHAIN_FILES DOVECOT_SSL_CERT_FILE DOVECOT_SSL_KEY_FILE
 
+# ── 2c-relay. Smarthost SASL authentication ──────────────────────────────────
+# When RELAYHOST_USER is set, Postfix authenticates to the smarthost (RELAYHOST)
+# with SASL. Credentials go into a `static:` lookup — it returns the same
+# user:password for every nexthop, which is exactly right for a single smarthost
+# and needs no separately postmap'd file. `security_options = noanonymous` keeps
+# the plaintext PLAIN/LOGIN mechanisms (what smarthosts use) enabled — Postfix's
+# default `noplaintext` would reject them — while `smtp_tls_security_level` (may)
+# still lets the creds travel inside TLS. POSTFIX_RELAYHOST_SASL is empty when no
+# relay user is set, so direct-send / unauthenticated-relay setups render no SASL
+# client lines at all. (The password must not contain whitespace: the static:
+# value is parsed as a single main.cf token.)
+if [ -n "${RELAYHOST_USER:-}" ]; then
+    POSTFIX_RELAYHOST_SASL="smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = static:${RELAYHOST_USER}:${RELAYHOST_PASSWORD:-}
+smtp_sasl_security_options = noanonymous
+smtp_sasl_tls_security_options = noanonymous"
+else
+    POSTFIX_RELAYHOST_SASL=""
+fi
+export POSTFIX_RELAYHOST_SASL
+
 # ── 2d. Derived variables for audit-svc (Dovecot auth-policy) ───────────────
 # AUDIT_POLICY_NONCE: random per-deploy nonce for auth_policy_hash_nonce.
 # Preserved across render-config re-runs when passed in from outside; generated
@@ -196,7 +217,7 @@ DUMP_VARS="MAIL_HOSTNAME SRS_DOMAIN PG_HOST PG_PORT PG_DBNAME PG_USER PG_PASSWOR
   REDIS_PASSWORD CLAMAV_ENABLED CLAMAV_HOST CLAMAV_PORT TLS_CERT_FILE \
   TLS_KEY_FILE TLS_CHAIN_FILE POSTFIX_TLS_CHAIN_FILES \
   DOVECOT_SSL_CERT_FILE DOVECOT_SSL_KEY_FILE \
-  RELAYHOST RELAYHOST_USER RELAYHOST_PASSWORD PASSWORD_SCHEME \
+  RELAYHOST RELAYHOST_USER RELAYHOST_PASSWORD POSTFIX_RELAYHOST_SASL PASSWORD_SCHEME \
   ALLOW_WEAK_SCHEMES MESSAGE_SIZE_LIMIT RSPAMD_REJECT_SCORE \
   DMARC_REPORT_ENABLED DMARC_REPORT_EMAIL AUDIT_ENABLED AUDIT_SCOPE \
   POP3_ENABLED POSTSCREEN_ENABLED GREYLISTING_ENABLED SIEVE_MAX_REDIRECTS \

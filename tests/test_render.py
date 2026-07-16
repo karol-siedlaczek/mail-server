@@ -198,6 +198,31 @@ def test_tls_chain_file_single_pem(tmp_path):
     assert chain.index("PRIVATE KEY") < chain.index("BEGIN CERTIFICATE")
 
 
+def test_relayhost_sasl_absent_by_default(tmp_path):
+    # No RELAYHOST_USER → no SASL client directives leak into main.cf, and the
+    # ${POSTFIX_RELAYHOST_SASL} placeholder is fully substituted (to empty).
+    root = full_render(tmp_path)
+    maincf = (root / "etc/postfix/main.cf").read_text()
+    assert "smtp_sasl_auth_enable = yes" not in maincf
+    assert "smtp_sasl_password_maps" not in maincf
+    assert "${POSTFIX_RELAYHOST_SASL}" not in maincf
+
+
+def test_relayhost_sasl_enabled_when_user_set(tmp_path):
+    # RELAYHOST_USER set → SASL client auth toward the smarthost is wired, with
+    # the creds in a static: map and plaintext mechanisms (noanonymous) allowed.
+    root = full_render(tmp_path, extra={
+        "RELAYHOST": "[smtp.relay.test]:587",
+        "RELAYHOST_USER": "relayuser",
+        "RELAYHOST_PASSWORD": "relaypass",
+    })
+    maincf = (root / "etc/postfix/main.cf").read_text()
+    assert "relayhost = [smtp.relay.test]:587" in maincf
+    assert "smtp_sasl_auth_enable = yes" in maincf
+    assert "smtp_sasl_password_maps = static:relayuser:relaypass" in maincf
+    assert "smtp_sasl_security_options = noanonymous" in maincf
+
+
 def test_render_creates_dest_dirs(tmp_path):
     root = full_render(tmp_path)
     assert (root / "run/mail-render-smoke.conf").is_file()
