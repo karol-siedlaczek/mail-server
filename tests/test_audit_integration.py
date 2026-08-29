@@ -5,7 +5,7 @@ sends. Runs against the compose.test.yml stack via the Makefile 'itest' target
 Reconciliation notes (phase A is the source of truth):
 - Alice's password is 'secret' (seed.sql ARGON2ID hash).
 - Postgres is NOT published to the host, so audit_logs is read via
-  `docker compose exec -T postgres psql` (the same shell-exec pattern read_sink
+  `docker exec -T postgres psql` (the same shell-exec pattern read_sink
   uses for the sink), with the compose creds (db=maildb, user=maildba).
 - Mail ports are host-mapped (IMAPS 12993, submission 12587) via conftest.
 - The 'send' row's sender may be SRS-rewritten depending on domain config, so
