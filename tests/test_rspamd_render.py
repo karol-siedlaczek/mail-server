@@ -258,3 +258,11 @@ def test_controller_exposed_with_password(tmp_path):
     # so the Sieve learn-on-move wrapper needs no password; remote still does.
     assert 'secure_ip = "127.0.0.1";' in t
     assert 'secure_ip = "::1";' in t
+
+def test_logging_to_console(rendered):
+    t = read(rendered, "logging.inc")
+    # The package default writes to /var/log/rspamd/rspamd.log inside the
+    # container, where nothing collects it; console sends it to the container log.
+    assert 'type = "console";' in t
+    assert "systemd = false;" in t
+    assert "filename" not in t

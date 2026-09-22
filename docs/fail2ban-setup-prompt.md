@@ -1,5 +1,13 @@
 # Prompt for a Claude Code session: set up fail2ban for the mail-server container
 
+> **Superseded.** This was the original brief; the setup that was actually built
+> is documented in [`fail2ban-setup.md`](fail2ban-setup.md). It differs on two
+> points: fail2ban runs natively on the host (which already had jails for sshd
+> and haproxy) rather than in its own container, and bans go into a dedicated
+> `inet f2b` table hooked at `forward`/`input` priority -10 rather than into
+> `DOCKER-USER`, which Docker recreates on daemon restart. Kept for the
+> reasoning it records.
+
 Copy everything below the line into a new Claude Code session (running on the
 Docker host `worker-01`, where the `mail-server` container runs).
 

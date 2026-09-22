@@ -301,3 +301,29 @@ def test_render_map_has_imapsieve_conf():
     rm = (repo / "rootfs" / "tpl" / "render.map").read_text()
     assert "tpl/dovecot/96-imapsieve.conf.tpl" in rm
     assert "/etc/dovecot/conf.d/96-imapsieve.conf" in rm
+
+
+# ── F.10: 10-logging.conf ─────────────────────────────────────────────────────
+
+def test_logging_goes_to_container_log(render_dovecot):
+    out = render_dovecot("10-logging.conf.tpl")
+    # Debian's default is `syslog`, and no syslog daemon runs in the image, so
+    # anything but an explicit path silently discards every IMAP/auth line.
+    assert "log_path = /dev/stderr" in out
+    assert "log_path = syslog" not in out
+
+
+def test_logging_enables_auth_verbose_without_passwords(render_dovecot):
+    out = render_dovecot("10-logging.conf.tpl")
+    # fail2ban's dovecot jail needs the per-attempt auth lines (with rip=).
+    assert "auth_verbose = yes" in out
+    # ...but never the submitted passwords in cleartext.
+    assert "auth_verbose_passwords = no" in out
+
+
+def test_render_map_has_logging_conf():
+    from pathlib import Path
+    repo = Path(__file__).resolve().parents[1]
+    rm = (repo / "rootfs" / "tpl" / "render.map").read_text()
+    assert "tpl/dovecot/10-logging.conf.tpl" in rm
+    assert "/etc/dovecot/conf.d/10-logging.conf" in rm

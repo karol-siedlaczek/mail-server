@@ -322,19 +322,26 @@ A starting policy is shipped at
 - **Queue:** `docker exec mail-server postqueue -p` (list) / `postqueue -f`
   (flush). Shutdown raises `S6_KILL_GRACETIME` (~20s) so the queue drains.
 - **Config sanity:** `postfix check`, `doveconf -n`, `rspamadm configtest`.
-- **Logs / audit:** daemon logs on container stdout; durable audit in the
-  `audit_logs` table (query by `login`, `timestamp`, `queue_id`).
+- **Logs / audit:** all three daemons log to container stdout — Postfix via
+  `maillog_file = /dev/stdout`, Dovecot via `log_path = /dev/stderr` plus
+  `auth_verbose = yes` (rendered `conf.d/10-logging.conf`), Rspamd via
+  `type = console` (rendered `local.d/logging.inc`). Leaving Dovecot and Rspamd
+  at their package defaults sends them to syslog and `/var/log/rspamd/` — both
+  dead ends in a container, which silently hides every failed IMAP login.
+  Durable audit lives in the `audit_logs` table (query by `login`, `timestamp`,
+  `queue_id`).
 - **Add a domain/user later:** insert rows in Postgres (the future `mail-controller`,
   or SQL); lookups need no restart. Generate and publish its DKIM key per
   [DKIM keys](#dkim-keys).
 - **Back up three things independently:** `/var/vmail`, the DKIM/ARC keys under
   `/var/lib/rspamd/dkim`, and the Postgres DB (`pg_dump`). Test restores.
 - **Brute-force protection (fail2ban):** this image does **not** ban abusive IPs
-  itself — it logs auth failures to stdout and leaves banning to a **separate
-  fail2ban container** on the host that watches `docker logs mail-server` and
-  drops offenders at the firewall. See
-  [`docs/fail2ban-setup-prompt.md`](docs/fail2ban-setup-prompt.md) for a ready-to-use
-  setup.
+  itself — it logs Postfix SASL and Dovecot auth failures (with the client IP)
+  to stdout and leaves banning to fail2ban on the host. Bans **must** land in
+  the `DOCKER-USER` chain: traffic to published container ports is DNAT'd
+  through `forward` and never traverses the host's `input` chain, so the stock
+  `nftables-*` / `iptables-*` actions have no effect. See
+  [`docs/fail2ban-setup.md`](docs/fail2ban-setup.md).
 
 ### DKIM keys
 
